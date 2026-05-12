@@ -32,6 +32,23 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# MCP config contains your Supabase service role key
+.mcp.json
+
+# Claude Code files that should not be committed
+.claude/
+
+# Node and build artifacts (usually already in Next.js default)
+node_modules/
+.next/
+out/
+build/
+
 
 # vercel
 .vercel

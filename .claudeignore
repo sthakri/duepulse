@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+build/
+*.log
+*.lock
+package-lock.json
+yarn.lock
+coverage/
+.env*
+.git/
+public/
+*.png
+*.jpg
+*.svg
+*.ico
+.trigger/
