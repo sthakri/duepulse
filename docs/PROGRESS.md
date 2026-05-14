@@ -1,6 +1,5 @@
 # Build Progress
 
-- [ ] Session 3: Landing page
 - [ ] Session 4: Auth flow (Supabase Auth + middleware)
 - [ ] Session 5: Onboarding wizard
 - [ ] Session 6: Canvas sync API route + rate limiting
