@@ -1,6 +1,5 @@
 # Build Progress
 
-- [ ] Session 2: lib/ helper files (supabase, canvas, openai, webpush, store, env)
 - [ ] Session 3: Landing page
 - [ ] Session 4: Auth flow (Supabase Auth + middleware)
 - [ ] Session 5: Onboarding wizard
