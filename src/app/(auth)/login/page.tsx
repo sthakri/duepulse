@@ -43,7 +43,12 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    if (mode === "signup") {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      router.push("/onboarding");
+    } else {
+      router.push("/dashboard");
+    }
   }
 
   return (
