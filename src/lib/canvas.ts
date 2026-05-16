@@ -64,7 +64,7 @@ export async function testCanvasConnection(
 ): Promise<{ success: boolean; courseCount: number; error?: string }> {
   try {
     const response = await fetch(
-      `https://${domain}/api/v1/courses?per_page=1`,
+      `https://${domain}/api/v1/courses?per_page=50&enrollment_state=active&enrollment_type=student`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
 

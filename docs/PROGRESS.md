@@ -1,6 +1,5 @@
 # Build Progress
 
-- [ ] Session 5: Onboarding wizard
 - [ ] Session 6: Canvas sync API route + rate limiting
 - [ ] Session 7A: AssignmentCard component
 - [ ] Session 7B: Dashboard layout + SyncNow button
