@@ -5,4 +5,5 @@
 - [x] Session 3: Landing page
 - [x] Session 4: Auth flow (Supabase Auth + middleware)
 - [x] Session 5: Onboarding wizard
+- [x] Session 6: Canvas sync API route + rate limiting
       (Move entries here from PROGRESS.md as each session finishes)
