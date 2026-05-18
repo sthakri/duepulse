@@ -1,6 +1,5 @@
 # Build Progress
 
-- [ ] Session 7A: AssignmentCard component
 - [ ] Session 7B: Dashboard layout + SyncNow button
 - [ ] Session 8A: WorkloadHeatmap component (D3, isolated)
 - [ ] Session 8B: Wire heatmap into dashboard

@@ -6,4 +6,5 @@
 - [x] Session 4: Auth flow (Supabase Auth + middleware)
 - [x] Session 5: Onboarding wizard
 - [x] Session 6: Canvas sync API route + rate limiting
+- [x] Session 7A: AssignmentCard component
       (Move entries here from PROGRESS.md as each session finishes)
