@@ -1,20 +1,20 @@
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import AssignmentCard from "@/components/AssignmentCard"
-import SyncNowButton from "@/components/SyncNowButton"
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import AssignmentCard from "@/components/AssignmentCard";
+import SyncNowButton from "@/components/SyncNowButton";
 
-type CourseJoin = { name: string; color: string } | null
+type CourseJoin = { name: string; color: string } | null;
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
+  const supabase = await createClient();
 
   const {
     data: { session },
-  } = await supabase.auth.getSession()
+  } = await supabase.auth.getSession();
 
-  if (!session) redirect("/login")
+  if (!session) redirect("/login");
 
-  const userId = session.user.id
+  const userId = session.user.id;
 
   const [{ data: assignments }, { data: profile }] = await Promise.all([
     supabase
@@ -28,22 +28,32 @@ export default async function DashboardPage() {
       .select("canvas_token, canvas_domain, updated_at")
       .eq("id", userId)
       .single(),
-  ])
+  ]);
 
-  const now = new Date()
-  const hourOfDay = now.getUTCHours()
-  const dayOfWeek = now.getUTCDay()
+  const now = new Date();
+  const hourOfDay = now.getUTCHours();
+  const dayOfWeek = now.getUTCDay();
+
+  const { data: pwRow } = await supabase
+    .from("productive_windows")
+    .select("score")
+    .eq("user_id", userId)
+    .eq("hour_of_day", hourOfDay)
+    .eq("day_of_week", dayOfWeek)
+    .maybeSingle();
+
+  const newScore = Math.min(((pwRow?.score as number) ?? 0) + 0.01, 1);
 
   await supabase.from("productive_windows").upsert(
     {
       user_id: userId,
       hour_of_day: hourOfDay,
       day_of_week: dayOfWeek,
-      score: 1,
+      score: newScore,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "user_id,hour_of_day,day_of_week" }
-  )
+    { onConflict: "user_id,hour_of_day,day_of_week" },
+  );
 
   return (
     <div className="bg-slate-900 min-h-screen">
@@ -66,7 +76,7 @@ export default async function DashboardPage() {
 
         <div className="flex flex-col gap-3">
           {(assignments ?? []).map((a) => {
-            const course = a.courses as CourseJoin
+            const course = a.courses as CourseJoin;
             return (
               <AssignmentCard
                 key={a.id}
@@ -79,10 +89,10 @@ export default async function DashboardPage() {
                 canvas_assignment_id={String(a.canvas_assignment_id)}
                 course_color={course?.color}
               />
-            )
+            );
           })}
         </div>
       </main>
     </div>
-  )
+  );
 }
