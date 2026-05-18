@@ -35,12 +35,12 @@ export default function WorkloadHeatmap({ data }: Props) {
     const svg = svgRef.current
     if (!container || !svg) return
 
-    const cellSize = 16
-    const gap = 3
+    const cellSize = 20
+    const gap = 4
     const step = cellSize + gap
     const marginTop = 40
-    const marginLeft = 30
-    const xAxisHeight = 24
+    const marginLeft = 36
+    const xAxisHeight = 40
     const legendHeight = 36
     const gridH = 7 * step - gap
     const svgHeight = marginTop + gridH + xAxisHeight + legendHeight
@@ -54,7 +54,7 @@ export default function WorkloadHeatmap({ data }: Props) {
     const counts = Array.from(countMap.values())
     const maxDomain = counts.length > 0 ? Math.max(5, ...counts) : 5
     const colorScale = d3
-      .scaleSequential(d3.interpolateRgb('#1e293b', '#ef4444'))
+      .scaleSequential(d3.interpolateRgb('#1e3a5f', '#ef4444'))
       .domain([0, maxDomain])
 
     const today = new Date()
@@ -98,7 +98,7 @@ export default function WorkloadHeatmap({ data }: Props) {
         .data(['M', 'T', 'W', 'T', 'F', 'S', 'S'])
         .join('text')
         .attr('class', 'dy')
-        .attr('x', marginLeft - 6)
+        .attr('x', marginLeft - 8)
         .attr('y', (_, i) => marginTop + i * step + cellSize / 2 + 4)
         .attr('text-anchor', 'end')
         .attr('fill', '#94a3b8')
@@ -109,9 +109,9 @@ export default function WorkloadHeatmap({ data }: Props) {
         .data(weekStarts)
         .join('text')
         .attr('class', 'wk')
-        .attr('x', (_, i) => marginLeft + i * step + cellSize / 2)
-        .attr('y', marginTop + gridH + xAxisHeight - 4)
-        .attr('text-anchor', 'middle')
+        .attr('transform', (_, i) =>
+          `translate(${marginLeft + i * step + cellSize / 2}, ${marginTop + gridH + 8}) rotate(-45)`)
+        .attr('text-anchor', 'end')
         .attr('fill', '#94a3b8')
         .attr('font-size', '9px')
         .text(d => fmtShort(d))
@@ -126,10 +126,10 @@ export default function WorkloadHeatmap({ data }: Props) {
         .attr('y', d => marginTop + d.row * step)
         .attr('width', cellSize)
         .attr('height', cellSize)
-        .attr('rx', 2)
+        .attr('rx', 3)
         .attr('fill', d => colorScale(countMap.get(d.dateStr) ?? 0))
-        .attr('stroke', d => d.dateStr === todayStr ? '#6366f1' : 'none')
-        .attr('stroke-width', d => d.dateStr === todayStr ? 2 : 0)
+        .attr('stroke', d => d.dateStr === todayStr ? '#6366f1' : '#334155')
+        .attr('stroke-width', d => d.dateStr === todayStr ? 2 : 0.5)
 
       cellGroups.append('title')
         .text(d => {

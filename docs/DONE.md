@@ -8,4 +8,5 @@
 - [x] Session 6: Canvas sync API route + rate limiting
 - [x] Session 7A: AssignmentCard component
 - [x] Session 7B: Dashboard layout + SyncNow button
+- [x] Session 8A: WorkloadHeatmap component (D3, isolated)
       (Move entries here from PROGRESS.md as each session finishes)
