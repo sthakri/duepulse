@@ -4,6 +4,8 @@ import AssignmentCard from "@/components/AssignmentCard";
 import SyncNowButton from "@/components/SyncNowButton";
 import WorkloadHeatmap from "@/components/WorkloadHeatmap";
 import ProductiveWindowsChart from "@/components/ProductiveWindowsChart";
+import PushNotificationButton from "@/components/PushNotificationButton";
+import TestNotifButton from "@/components/TestNotifButton";
 
 type CourseJoin = { name: string; color: string } | null;
 
@@ -57,17 +59,17 @@ export default async function DashboardPage() {
     { onConflict: "user_id,hour_of_day,day_of_week" },
   );
 
-  console.log('heatmap RPC user:', userId)
+  console.log("heatmap RPC user:", userId);
   const { data: rawHeatmap } = await supabase.rpc("get_workload_heatmap", {
     p_user_id: userId,
   });
-  console.log('heatmap raw rows:', JSON.stringify(rawHeatmap))
+  console.log("heatmap raw rows:", JSON.stringify(rawHeatmap));
 
   const { data: productiveWindows } = await supabase
     .from("productive_windows")
     .select("hour_of_day, day_of_week, score")
     .eq("user_id", userId);
-  console.log('focus data:', JSON.stringify(productiveWindows))
+  console.log("focus data:", JSON.stringify(productiveWindows));
 
   const heatmapData = (rawHeatmap ?? []).map((row: any) => ({
     due_at: row.due_date,
@@ -97,6 +99,8 @@ export default async function DashboardPage() {
             <span className="text-slate-400 text-sm hidden sm:block">
               {user.email}
             </span>
+            <PushNotificationButton userId={userId} />
+            {process.env.NODE_ENV === 'development' && <TestNotifButton userId={userId} />}
             <SyncNowButton
               userId={userId}
               token={profile?.canvas_token ?? ""}

@@ -10,4 +10,5 @@
 - [x] Session 7B: Dashboard layout + SyncNow button
 - [x] Session 8A: WorkloadHeatmap component (D3, isolated)
 - [x] Session 8B: Wire heatmap into dashboard
+- [x] Session 9: ProductiveWindowsChart (D3)
       (Move entries here from PROGRESS.md as each session finishes)
