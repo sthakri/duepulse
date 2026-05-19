@@ -9,4 +9,5 @@
 - [x] Session 7A: AssignmentCard component
 - [x] Session 7B: Dashboard layout + SyncNow button
 - [x] Session 8A: WorkloadHeatmap component (D3, isolated)
+- [x] Session 8B: Wire heatmap into dashboard
       (Move entries here from PROGRESS.md as each session finishes)

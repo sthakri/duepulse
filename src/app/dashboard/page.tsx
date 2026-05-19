@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import AssignmentCard from "@/components/AssignmentCard";
 import SyncNowButton from "@/components/SyncNowButton";
 import WorkloadHeatmap from "@/components/WorkloadHeatmap";
+import ProductiveWindowsChart from "@/components/ProductiveWindowsChart";
 
 type CourseJoin = { name: string; color: string } | null;
 
@@ -10,12 +11,12 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) redirect("/login");
+  if (!user) redirect("/login");
 
-  const userId = session.user.id;
+  const userId = user.id;
 
   const [{ data: assignments }, { data: profile }] = await Promise.all([
     supabase
@@ -32,8 +33,8 @@ export default async function DashboardPage() {
   ]);
 
   const now = new Date();
-  const hourOfDay = now.getUTCHours();
-  const dayOfWeek = now.getUTCDay();
+  const hourOfDay = now.getHours();
+  const dayOfWeek = now.getDay();
 
   const { data: pwRow } = await supabase
     .from("productive_windows")
@@ -56,22 +57,34 @@ export default async function DashboardPage() {
     { onConflict: "user_id,hour_of_day,day_of_week" },
   );
 
-  const { data: rawHeatmap } = await supabase.rpc('get_workload_heatmap',
-    { p_user_id: userId })
+  console.log('heatmap RPC user:', userId)
+  const { data: rawHeatmap } = await supabase.rpc("get_workload_heatmap", {
+    p_user_id: userId,
+  });
+  console.log('heatmap raw rows:', JSON.stringify(rawHeatmap))
+
+  const { data: productiveWindows } = await supabase
+    .from("productive_windows")
+    .select("hour_of_day, day_of_week, score")
+    .eq("user_id", userId);
+  console.log('focus data:', JSON.stringify(productiveWindows))
 
   const heatmapData = (rawHeatmap ?? []).map((row: any) => ({
     due_at: row.due_date,
-    assignment_count: row.assignment_count,
-  }))
+    assignment_count: row.count,
+  }));
 
-  const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-  const totalCount = (assignments ?? []).length
+  const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const totalCount = (assignments ?? []).length;
   const overdueCount = (assignments ?? []).filter(
-    a => a.due_at && new Date(a.due_at) < now
-  ).length
+    (a) => a.due_at && new Date(a.due_at) < now,
+  ).length;
   const dueThisWeekCount = (assignments ?? []).filter(
-    a => a.due_at && new Date(a.due_at) >= now && new Date(a.due_at) <= weekFromNow
-  ).length
+    (a) =>
+      a.due_at &&
+      new Date(a.due_at) >= now &&
+      new Date(a.due_at) <= weekFromNow,
+  ).length;
 
   return (
     <div className="bg-slate-900 min-h-screen">
@@ -81,7 +94,9 @@ export default async function DashboardPage() {
             DuePulse
           </span>
           <div className="flex items-center gap-4">
-            <span className="text-slate-400 text-sm hidden sm:block">{session.user.email}</span>
+            <span className="text-slate-400 text-sm hidden sm:block">
+              {user.email}
+            </span>
             <SyncNowButton
               userId={userId}
               token={profile?.canvas_token ?? ""}
@@ -93,35 +108,72 @@ export default async function DashboardPage() {
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 lg:col-start-1 lg:row-start-1">
+          <div className="order-1 lg:order-0 lg:col-span-2 lg:col-start-1 lg:row-start-1 min-h-0 self-start">
             <WorkloadHeatmap data={heatmapData} />
           </div>
 
-          <div className="lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:row-span-2">
-            <div className="rounded-xl bg-slate-800 p-6 lg:sticky lg:top-6">
+          <div className="order-2 lg:hidden rounded-xl bg-slate-800 p-6">
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-6">
+              Overview
+            </p>
+            <div className="flex flex-col gap-6">
+              <div>
+                <p className="text-3xl font-bold text-white">{totalCount}</p>
+                <p className="text-slate-400 text-sm mt-1">Total assignments</p>
+              </div>
+              <div className="h-px bg-slate-700/50" />
+              <div>
+                <p className="text-3xl font-bold text-red-400">
+                  {overdueCount}
+                </p>
+                <p className="text-slate-400 text-sm mt-1">Overdue</p>
+              </div>
+              <div className="h-px bg-slate-700/50" />
+              <div>
+                <p className="text-3xl font-bold text-amber-400">
+                  {dueThisWeekCount}
+                </p>
+                <p className="text-slate-400 text-sm mt-1">Due this week</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="order-4 lg:hidden">
+            <ProductiveWindowsChart data={productiveWindows ?? []} />
+          </div>
+
+          <div className="hidden lg:block lg:self-start lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:row-span-2">
+            <div className="rounded-xl bg-slate-800 p-6 mb-6">
               <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-6">
                 Overview
               </p>
               <div className="flex flex-col gap-6">
                 <div>
                   <p className="text-3xl font-bold text-white">{totalCount}</p>
-                  <p className="text-slate-400 text-sm mt-1">Total assignments</p>
+                  <p className="text-slate-400 text-sm mt-1">
+                    Total assignments
+                  </p>
                 </div>
                 <div className="h-px bg-slate-700/50" />
                 <div>
-                  <p className="text-3xl font-bold text-red-400">{overdueCount}</p>
+                  <p className="text-3xl font-bold text-red-400">
+                    {overdueCount}
+                  </p>
                   <p className="text-slate-400 text-sm mt-1">Overdue</p>
                 </div>
                 <div className="h-px bg-slate-700/50" />
                 <div>
-                  <p className="text-3xl font-bold text-amber-400">{dueThisWeekCount}</p>
+                  <p className="text-3xl font-bold text-amber-400">
+                    {dueThisWeekCount}
+                  </p>
                   <p className="text-slate-400 text-sm mt-1">Due this week</p>
                 </div>
               </div>
             </div>
+            <ProductiveWindowsChart data={productiveWindows ?? []} />
           </div>
 
-          <div className="lg:col-span-2 lg:col-start-1 lg:row-start-2 flex flex-col gap-3">
+          <div className="order-3 lg:order-0 lg:col-span-2 lg:col-start-1 lg:row-start-2 flex flex-col gap-3">
             {(assignments ?? []).map((a) => {
               const course = a.courses as CourseJoin;
               return (
@@ -131,7 +183,9 @@ export default async function DashboardPage() {
                   course_name={course?.name ?? "Unknown"}
                   due_at={a.due_at}
                   points_possible={
-                    a.points_possible !== null ? Number(a.points_possible) : null
+                    a.points_possible !== null
+                      ? Number(a.points_possible)
+                      : null
                   }
                   canvas_assignment_id={String(a.canvas_assignment_id)}
                   course_color={course?.color}

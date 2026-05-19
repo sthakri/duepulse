@@ -1,6 +1,5 @@
 # Build Progress
 
-- [ ] Session 8B: Wire heatmap into dashboard
 - [ ] Session 9: ProductiveWindowsChart (D3)
   - Also: center heatmap in its card + increase cellSize to 26px
 - [ ] Session 10: Web Push subscription flow
