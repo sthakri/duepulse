@@ -52,9 +52,12 @@ export default function OnboardingWizard() {
     if (!result.success) {
       setError(result.error ?? "Connection failed");
     } else {
-      await createClient()
-        .from("profiles")
-        .upsert({ id: user.id, canvas_domain: domain, canvas_token: token });
+      await createClient().from("profiles").upsert({
+        id: user.id,
+        canvas_domain: domain,
+        canvas_token: token,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
       setCourseCount(result.courseCount);
       setStep(2);
     }

@@ -40,7 +40,14 @@ export async function getCanvasAssignments(
           canvas_assignment_id: Number(item.plannable_id),
           canvas_course_id: Number(item.course_id),
           title: String(plannable?.title ?? ""),
-          due_at: typeof item.plannable_date === "string" ? item.plannable_date : null,
+          // plannable.due_at is the UTC ISO-8601 string ("2024-05-23T04:59:00Z").
+          // plannable_date is a naive course-timezone string with no offset — PostgreSQL
+          // would treat it as UTC, causing a timezone shift in the browser display.
+          due_at: typeof plannable?.due_at === "string"
+            ? plannable.due_at
+            : typeof item.plannable_date === "string"
+            ? item.plannable_date
+            : null,
           points_possible:
             plannable?.points_possible != null
               ? Number(plannable.points_possible)

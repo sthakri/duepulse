@@ -17,30 +17,20 @@ function getDueDateInfo(due_at: string): {
 } {
   const now = new Date()
   const due = new Date(due_at)
-  const diffMs = due.getTime() - now.getTime()
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate())
+  const diffDays = Math.round((dueMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24))
 
-  if (diffMs < 0) {
-    const days = Math.max(1, Math.round(-diffMs / 86_400_000))
-    return {
-      label: `Overdue by ${days} day${days === 1 ? "" : "s"}`,
-      isOverdue: true,
-      isDueSoon: false,
-    }
-  }
+  const relativeLabel = diffDays < 0
+    ? `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) > 1 ? 's' : ''}`
+    : diffDays === 0 ? 'Due today'
+    : diffDays === 1 ? 'Due tomorrow'
+    : `Due in ${diffDays} days`
 
-  const isDueSoon = diffMs <= 48 * 60 * 60 * 1000
-  const diffDays = Math.round(diffMs / 86_400_000)
+  const exactTime = due.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+  const label = diffDays >= 0 ? `${relativeLabel} at ${exactTime}` : relativeLabel
 
-  let label: string
-  if (diffDays === 0) {
-    label = "Due today"
-  } else if (diffDays === 1) {
-    label = "Due tomorrow"
-  } else {
-    label = `Due in ${diffDays} days`
-  }
-
-  return { label, isOverdue: false, isDueSoon }
+  return { label, isOverdue: diffDays < 0, isDueSoon: diffDays >= 0 && diffDays <= 1 }
 }
 
 export default function AssignmentCard({

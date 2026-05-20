@@ -3,7 +3,8 @@ import { env } from "@/lib/env";
 
 export async function sendPushNotification(
   subscription: webpush.PushSubscription,
-  message: string
+  message: string,
+  title = "DuePulse"
 ): Promise<void> {
   webpush.setVapidDetails(
     "mailto:admin@duepulse.app",
@@ -12,7 +13,7 @@ export async function sendPushNotification(
   );
   await webpush.sendNotification(
     subscription,
-    JSON.stringify({ title: "DuePulse", body: message })
+    JSON.stringify({ title, body: message })
   );
 }
 

@@ -106,6 +106,30 @@ export type Database = {
         }
         Relationships: []
       }
+      nudge_logs: {
+        Row: {
+          assignment_id: string | null
+          id: string
+          nudge_type: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          assignment_id?: string | null
+          id?: string
+          nudge_type: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          assignment_id?: string | null
+          id?: string
+          nudge_type?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       productive_windows: {
         Row: {
           day_of_week: number
@@ -140,6 +164,7 @@ export type Database = {
           created_at: string
           id: string
           onboarding_complete: boolean
+          timezone: string | null
           updated_at: string
         }
         Insert: {
@@ -148,6 +173,7 @@ export type Database = {
           created_at?: string
           id: string
           onboarding_complete?: boolean
+          timezone?: string | null
           updated_at?: string
         }
         Update: {
@@ -156,6 +182,7 @@ export type Database = {
           created_at?: string
           id?: string
           onboarding_complete?: boolean
+          timezone?: string | null
           updated_at?: string
         }
         Relationships: []

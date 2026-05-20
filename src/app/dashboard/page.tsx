@@ -29,14 +29,36 @@ export default async function DashboardPage() {
       .order("due_at", { ascending: true, nullsFirst: false }),
     supabase
       .from("profiles")
-      .select("canvas_token, canvas_domain, updated_at")
+      .select("canvas_token, canvas_domain, updated_at, timezone")
       .eq("id", userId)
       .single(),
   ]);
 
   const now = new Date();
-  const hourOfDay = now.getHours();
-  const dayOfWeek = now.getDay();
+  const userTz = profile?.timezone ?? "America/Chicago";
+
+  // Compute local hour and day-of-week in the user's timezone (server runs UTC).
+  const localParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: userTz,
+    hour: "numeric",
+    hourCycle: "h23",
+    weekday: "short",
+  }).formatToParts(now);
+  const hourOfDay = parseInt(
+    localParts.find((p) => p.type === "hour")?.value ?? "0",
+    10,
+  );
+  const DOW_MAP: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  const dayOfWeek =
+    DOW_MAP[localParts.find((p) => p.type === "weekday")?.value ?? "Sun"] ?? 0;
 
   const { data: pwRow } = await supabase
     .from("productive_windows")
@@ -59,22 +81,32 @@ export default async function DashboardPage() {
     { onConflict: "user_id,hour_of_day,day_of_week" },
   );
 
-  console.log("heatmap RPC user:", userId);
-  const { data: rawHeatmap } = await supabase.rpc("get_workload_heatmap", {
-    p_user_id: userId,
-  });
-  console.log("heatmap raw rows:", JSON.stringify(rawHeatmap));
-
   const { data: productiveWindows } = await supabase
     .from("productive_windows")
     .select("hour_of_day, day_of_week, score")
     .eq("user_id", userId);
-  console.log("focus data:", JSON.stringify(productiveWindows));
 
-  const heatmapData = (rawHeatmap ?? []).map((row: any) => ({
-    due_at: row.due_date,
-    assignment_count: row.count,
-  }));
+  // Build heatmap from assignments using local dates to avoid UTC date shift.
+  // (e.g. an 11:59 PM CDT deadline stored as 04:59 UTC would fall on the wrong
+  // day if we sliced the UTC ISO string or used a server-side SQL date cast.)
+  const heatmapCounts = (assignments ?? []).reduce<Record<string, number>>(
+    (acc, a) => {
+      if (!a.due_at) return acc;
+      const localDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: userTz,
+      }).format(new Date(a.due_at));
+      acc[localDate] = (acc[localDate] ?? 0) + 1;
+      return acc;
+    },
+    {},
+  );
+  const heatmapData = Object.entries(heatmapCounts).map(
+    ([due_at, assignment_count]) => ({
+      due_at,
+      assignment_count,
+    }),
+  );
+  console.log("heatmap data rows:", heatmapData.length);
 
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const totalCount = (assignments ?? []).length;
@@ -100,7 +132,9 @@ export default async function DashboardPage() {
               {user.email}
             </span>
             <PushNotificationButton userId={userId} />
-            {process.env.NODE_ENV === 'development' && <TestNotifButton userId={userId} />}
+            {process.env.NODE_ENV === "development" && (
+              <TestNotifButton userId={userId} />
+            )}
             <SyncNowButton
               userId={userId}
               token={profile?.canvas_token ?? ""}

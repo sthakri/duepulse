@@ -12,6 +12,7 @@ create table if not exists public.profiles (
   id            uuid primary key references auth.users(id) on delete cascade,
   canvas_domain text,
   canvas_token  text,
+  timezone      text default 'America/Chicago',
   onboarding_complete boolean not null default false,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
@@ -201,3 +202,29 @@ $$;
 -- Revoke public execute; only the authenticated user's service role calls this
 revoke execute on function public.get_workload_heatmap(uuid) from public;
 grant  execute on function public.get_workload_heatmap(uuid) to authenticated;
+
+-- ============================================================
+-- TABLE: nudge_logs
+-- Deduplication log for sent push notifications
+-- ============================================================
+create table if not exists public.nudge_logs (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references public.profiles(id) on delete cascade,
+  assignment_id  uuid references public.assignments(id) on delete cascade,
+  nudge_type     text not null check (nudge_type in ('productive_window', '12h', '6h', '1h')),
+  sent_at        timestamptz not null default now()
+);
+
+-- Partial unique index: each assignment can only receive each deadline nudge type once.
+create unique index if not exists nudge_logs_dedup
+  on public.nudge_logs (user_id, assignment_id, nudge_type)
+  where assignment_id is not null;
+
+create index if not exists nudge_logs_user_type_time
+  on public.nudge_logs (user_id, nudge_type, sent_at desc);
+
+alter table public.nudge_logs enable row level security;
+
+create policy "nudge_logs: owner select"
+  on public.nudge_logs for select
+  using (auth.uid() = user_id);
