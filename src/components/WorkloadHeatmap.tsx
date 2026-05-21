@@ -39,6 +39,7 @@ function fmtShort(d: Date): string {
 
 export default function WorkloadHeatmap({ data }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     d3.select(svgRef.current).selectAll("*").remove();
@@ -97,8 +98,7 @@ export default function WorkloadHeatmap({ data }: Props) {
       const svgSel = d3
         .select(svg)
         .attr("viewBox", `0 0 ${contentWidth} ${svgHeight}`)
-        .attr("width", contentWidth)
-        .attr("height", svgHeight);
+        .attr("width", "100%");
 
       svgSel
         .selectAll<SVGTextElement, string>("text.dy")
@@ -210,16 +210,18 @@ export default function WorkloadHeatmap({ data }: Props) {
 
     redraw();
 
-    return () => {};
+    const ro = new ResizeObserver(() => redraw());
+    if (wrapperRef.current) ro.observe(wrapperRef.current);
+    return () => ro.disconnect();
   }, [data]);
 
   return (
-    <div className="rounded-xl bg-slate-800 p-6">
+    <div className="rounded-xl bg-slate-800 p-4 sm:p-6">
       <p className="text-white font-semibold text-lg mb-4 text-center">
         Workload — Next 6 Weeks
       </p>
-      <div className="flex justify-center w-full">
-        <svg ref={svgRef} style={{ maxWidth: "100%", height: "auto" }} />
+      <div ref={wrapperRef} className="w-full max-w-85 mx-auto">
+        <svg ref={svgRef} className="w-full h-auto block" />
       </div>
     </div>
   );

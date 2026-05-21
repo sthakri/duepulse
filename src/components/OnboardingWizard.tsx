@@ -97,7 +97,7 @@ export default function OnboardingWizard() {
   }
 
   return (
-    <div className="w-full max-w-md bg-slate-800 rounded-xl p-8">
+    <div className="w-full max-w-md bg-slate-800 rounded-xl p-6 sm:p-8">
       <div className="flex gap-2 justify-center mb-8">
         {[1, 2, 3, 4].map((n) => (
           <div
@@ -115,7 +115,7 @@ export default function OnboardingWizard() {
             <h1 className="text-white font-semibold text-2xl">
               Connect Canvas
             </h1>
-            <p className="text-slate-300 text-sm mt-1">
+            <p className="text-slate-300 text-base mt-1">
               Link your Canvas account to get started.
             </p>
           </div>
@@ -130,7 +130,7 @@ export default function OnboardingWizard() {
               placeholder="yourschool.instructure.com"
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
-              className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500"
+              className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500 min-h-11"
             />
           </div>
 
@@ -145,12 +145,12 @@ export default function OnboardingWizard() {
                 placeholder="••••••••••••••••"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500 pr-10"
+                className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500 pr-12 min-h-11"
               />
               <button
                 type="button"
                 onClick={() => setShowToken(!showToken)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-300"
               >
                 {showToken ? (
                   <EyeOff className="w-4 h-4" />
@@ -159,7 +159,7 @@ export default function OnboardingWizard() {
                 )}
               </button>
             </div>
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-400 text-base">
               Canvas → Account → Settings → New Access Token
             </p>
           </div>
@@ -167,7 +167,7 @@ export default function OnboardingWizard() {
           <Button
             onClick={handleTestConnection}
             disabled={loading || !domain || !token}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full min-h-11"
           >
             {loading ? "Testing…" : "Test Connection →"}
           </Button>
@@ -183,13 +183,13 @@ export default function OnboardingWizard() {
             <p className="text-white font-semibold text-lg">
               Connected to {domain}
             </p>
-            <p className="text-slate-300 text-sm mt-1">
+            <p className="text-slate-300 text-base mt-1">
               Found {courseCount} course{courseCount !== 1 ? "s" : ""}
             </p>
           </div>
           <Button
             onClick={() => setStep(3)}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full min-h-11"
           >
             Continue →
           </Button>
@@ -200,14 +200,14 @@ export default function OnboardingWizard() {
         <div className="space-y-5">
           <div>
             <h1 className="text-white font-semibold text-2xl">Enable Nudges</h1>
-            <p className="text-slate-300 text-sm mt-1">
+            <p className="text-slate-300 text-base mt-1">
               Get timely reminders before assignments are due.
             </p>
           </div>
 
           <Button
             onClick={handleEnableNotifications}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full min-h-11"
           >
             Enable Nudges
           </Button>
@@ -216,7 +216,7 @@ export default function OnboardingWizard() {
             <button
               type="button"
               onClick={() => setStep(4)}
-              className="text-slate-400 text-sm hover:text-slate-300"
+              className="text-slate-400 text-base hover:text-slate-300 min-h-11 flex items-center justify-center w-full"
             >
               Enable later in Settings
             </button>
@@ -230,13 +230,13 @@ export default function OnboardingWizard() {
             <h1 className="text-white font-semibold text-2xl">
               You&apos;re all set!
             </h1>
-            <p className="text-slate-300 text-sm mt-1">
+            <p className="text-slate-300 text-base mt-1">
               Your Canvas assignments are syncing in the background.
             </p>
           </div>
           <Button
             onClick={handleGoToDashboard}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full min-h-11"
           >
             Go to Dashboard →
           </Button>

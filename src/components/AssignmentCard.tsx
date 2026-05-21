@@ -49,7 +49,7 @@ export default function AssignmentCard({
   return (
     <Card
       className={cn(
-        "bg-slate-800 rounded-xl p-4 flex flex-col gap-2 ring-0",
+        "bg-slate-800 rounded-xl p-4 flex flex-col gap-2 ring-0 border-0",
         isOverdue && "opacity-60"
       )}
       style={{ borderLeft: `4px solid ${course_color}` }}
@@ -57,7 +57,7 @@ export default function AssignmentCard({
       <p className="text-slate-400 text-xs uppercase tracking-wide leading-none">
         {course_name}
       </p>
-      <p className="text-white font-semibold text-base truncate">{title}</p>
+      <p className="text-white font-semibold text-base">{title}</p>
       <div className="flex flex-wrap items-center gap-2">
         {due_at ? (
           <span className="text-slate-400 text-xs">{dueInfo!.label}</span>

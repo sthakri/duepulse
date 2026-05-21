@@ -13,4 +13,5 @@
 - [x] Session 9: ProductiveWindowsChart (D3)
 - [x] Session 10: Web Push subscription flow
 - [x] Session 11: Trigger.dev nudge engine + OpenAI
+- [x] Session 11B: PWA config
       (Move entries here from PROGRESS.md as each session finishes)

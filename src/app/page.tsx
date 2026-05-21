@@ -33,7 +33,7 @@ export default function HomePage() {
         </p>
         <Button
           asChild
-          className="bg-indigo-500 hover:bg-indigo-600 text-white mt-8 px-6 py-3 text-base h-auto"
+          className="bg-indigo-500 hover:bg-indigo-600 text-white mt-8 px-6 py-3 text-base h-auto w-full sm:w-auto"
         >
           <Link href="/onboarding">Connect Your Canvas →</Link>
         </Button>
@@ -45,7 +45,7 @@ export default function HomePage() {
             <div key={title} className="rounded-xl bg-slate-800 p-4">
               <Icon className="text-indigo-400 mb-3" size={24} />
               <h2 className="text-white font-semibold text-lg">{title}</h2>
-              <p className="text-slate-300 text-sm mt-1">{body}</p>
+              <p className="text-slate-300 text-base mt-1">{body}</p>
             </div>
           ))}
         </div>

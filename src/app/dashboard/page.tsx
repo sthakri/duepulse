@@ -123,11 +123,11 @@ export default async function DashboardPage() {
   return (
     <div className="bg-slate-900 min-h-screen">
       <header className="border-b border-slate-700/50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-4 sm:px-6 flex items-center justify-between">
           <span className="font-bold text-lg bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
             DuePulse
           </span>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <span className="text-slate-400 text-sm hidden sm:block">
               {user.email}
             </span>
@@ -144,7 +144,7 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="order-1 lg:order-0 lg:col-span-2 lg:col-start-1 lg:row-start-1 min-h-0 self-start">
             <WorkloadHeatmap data={heatmapData} />

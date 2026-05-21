@@ -104,7 +104,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white w-full"
+              className="bg-indigo-500 hover:bg-indigo-600 text-white w-full min-h-11"
             >
               {loading
                 ? "Please wait…"
@@ -119,7 +119,7 @@ export default function LoginPage() {
                 setMode(mode === "signin" ? "signup" : "signin");
                 setError("");
               }}
-              className="text-slate-300 hover:text-white text-sm"
+              className="text-slate-300 hover:text-white text-base min-h-11 flex items-center justify-center w-full"
             >
               {mode === "signin"
                 ? "Don't have an account? Sign up"
