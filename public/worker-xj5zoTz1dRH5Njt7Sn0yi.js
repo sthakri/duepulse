@@ -1,0 +1,1 @@
+self.addEventListener("push",function(n){var o,i;const t=null!==(o=null===(i=n.data)||void 0===i?void 0:i.json())&&void 0!==o?o:{};n.waitUntil(self.registration.showNotification(t.title||"DuePulse",{body:t.body||"You have an assignment due soon",icon:"/icons/192.png"}))});

@@ -12,4 +12,5 @@
 - [x] Session 8B: Wire heatmap into dashboard
 - [x] Session 9: ProductiveWindowsChart (D3)
 - [x] Session 10: Web Push subscription flow
+- [x] Session 11: Trigger.dev nudge engine + OpenAI
       (Move entries here from PROGRESS.md as each session finishes)

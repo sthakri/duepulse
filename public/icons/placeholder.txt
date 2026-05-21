@@ -1,0 +1,2 @@
+Replace with real 192x192 and 512x512 PNG icons before launch.
+Free tool: https://favicon.io/favicon-generator
