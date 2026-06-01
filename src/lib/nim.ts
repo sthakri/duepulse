@@ -2,7 +2,10 @@ import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { env } from "@/lib/env";
 
-const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
+const nim = createOpenAI({
+  apiKey: env.NIM_API_KEY,
+  baseURL: "https://integrate.api.nvidia.com/v1",
+});
 
 export async function generateNudge(
   assignmentTitle: string,
@@ -19,7 +22,7 @@ export async function generateNudge(
   const dueDateReadable = `${relativeDay} at ${exactTime}`
 
   const { text } = await generateText({
-    model: openai("gpt-4o-mini"),
+    model: nim("mistralai/mistral-large-3-675b-instruct-2512"),
     prompt: `You are a funny, warm study buddy texting a student a push notification.
   Assignment: "${assignmentTitle}" for ${courseName}, due ${dueDateReadable}.
   Write ONE push notification under 120 characters.

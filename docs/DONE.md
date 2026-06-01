@@ -14,4 +14,6 @@
 - [x] Session 10: Web Push subscription flow
 - [x] Session 11: Trigger.dev nudge engine + OpenAI
 - [x] Session 11B: PWA config
+- [x] Session 12: Mobile responsive pass (375px)
+
       (Move entries here from PROGRESS.md as each session finishes)

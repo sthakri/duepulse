@@ -2,9 +2,7 @@ import type { NextConfig } from "next";
 // @ts-expect-error next-pwa has no type declarations
 import withPWA from "next-pwa";
 
-const nextConfig: NextConfig = {
-  turbopack: {},
-};
+const nextConfig: NextConfig = {};
 
 export default withPWA({
   dest: "public",

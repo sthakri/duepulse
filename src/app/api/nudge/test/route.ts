@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
-import { generateNudge } from "@/lib/openai"
+import { generateNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
 import type { Database } from "@/database.types"
 import webpush from "web-push"

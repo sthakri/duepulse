@@ -1,7 +1,7 @@
 import { schedules } from "@trigger.dev/sdk/v3"
 import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
-import { generateNudge } from "@/lib/openai"
+import { generateNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
 import type { Database } from "@/database.types"
 import webpush from "web-push"
@@ -58,6 +58,11 @@ export const nudgeEngine = schedules.task({
   id: "send-nudges",
   cron: "0 * * * *",
   run: async (_payload) => {
+    if (env.NUDGE_ENABLED !== "true") {
+      console.log("[nudge-engine] Nudges disabled (NUDGE_ENABLED != true). Skipping.")
+      return
+    }
+
     const now = new Date()
 
     const serviceClient = createServerClient<Database>(
@@ -138,7 +143,7 @@ export const nudgeEngine = schedules.task({
 
         if (recentLog) return
 
-        // Fetch up to 3 upcoming incomplete assignments (pass nearest to OpenAI).
+        // Fetch up to 3 upcoming incomplete assignments (pass nearest to NIM).
         const { data: assignments } = await serviceClient
           .from("assignments")
           .select("id, title, due_at, courses(name)")

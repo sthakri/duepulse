@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/api/canvas/sync/route.ts": { "maxDuration": 60 },
+    "src/app/api/canvas/test/route.ts": { "maxDuration": 60 },
+    "src/app/api/nudge/test/route.ts":  { "maxDuration": 60 }
+  }
+}

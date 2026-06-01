@@ -58,3 +58,4 @@ build/
 next-env.d.ts
 
 .trigger
+DEPLOYMENT.md

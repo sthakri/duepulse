@@ -8,8 +8,8 @@
   Browser client in Client Components only.
 - D3.js for ALL charts. Never Recharts. Never Chart.js.
 - web-push for notifications. Never FCM or OneSignal.
-- OpenAI via Vercel AI SDK only. Use generateText() or streamText() from 'ai'.
-  Never import openai directly.
+- AI (NVIDIA NIM) via Vercel AI SDK only. Use generateText() or streamText() from 'ai'.
+  Never import the provider client directly — always use lib/nim.ts.
 - Background jobs via Trigger.dev only. Never raw cron routes for long tasks.
 - Client state via Zustand only. No React Context for global state.
 - Rate limiting via @upstash/ratelimit on all external API routes.
