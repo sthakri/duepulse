@@ -44,7 +44,7 @@ export default function LoginPage() {
     }
 
     if (mode === "signup") {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       router.push("/onboarding");
     } else {
       router.push("/dashboard");
@@ -119,7 +119,7 @@ export default function LoginPage() {
                 setMode(mode === "signin" ? "signup" : "signin");
                 setError("");
               }}
-              className="text-slate-300 hover:text-white text-base min-h-11 flex items-center justify-center w-full"
+              className="bg-transparent text-slate-300 hover:text-white text-base min-h-11 flex items-center justify-center w-full"
             >
               {mode === "signin"
                 ? "Don't have an account? Sign up"

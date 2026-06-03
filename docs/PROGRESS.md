@@ -1,6 +1,6 @@
 # Build Progress
 
-- [x] Session 13: Deployment prep (vercel.json, proxy.ts migration, clean build, DEPLOYMENT.md)
+- [ ] Session 13: Deployment prep (vercel.json, proxy.ts migration, clean build, DEPLOYMENT.md)
 
 ## Upcoming Sessions (v1.1 — post-launch)
 
