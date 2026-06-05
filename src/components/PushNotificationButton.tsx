@@ -33,8 +33,22 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
       setState("unsupported");
       return;
     }
-    if (Notification.permission === "granted") setState("subscribed");
-    else if (Notification.permission === "denied") setState("denied");
+    if (Notification.permission === "denied") {
+      setState("denied");
+      return;
+    }
+    if (Notification.permission === "granted") {
+      // Only show "subscribed" if the browser actually has an active push subscription.
+      // If the DB write failed on a previous attempt, permission is granted but no
+      // subscription exists yet — reset to idle so the user can retry.
+      navigator.serviceWorker
+        .getRegistration("/")
+        .then((reg) => reg?.pushManager.getSubscription() ?? null)
+        .then((sub) => {
+          setState(sub ? "subscribed" : "idle");
+        })
+        .catch(() => setState("idle"));
+    }
   }, []);
 
   async function handleClick() {
@@ -48,21 +62,29 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
     }
 
     try {
-      let registration: ServiceWorkerRegistration | undefined;
+      // Ensure SW is registered, then unconditionally wait for the active
+      // registration. Without this, an updating/installing SW causes an AbortError.
       try {
-        registration = await navigator.serviceWorker.getRegistration("/");
-        if (!registration) {
-          registration = await navigator.serviceWorker.register("/sw.js", {
-            scope: "/",
-          });
-          await navigator.serviceWorker.ready;
+        const existing = await navigator.serviceWorker.getRegistration("/");
+        if (!existing) {
+          await navigator.serviceWorker.register("/sw.js", { scope: "/" });
         }
       } catch {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        registration = regs[0];
+        // Ignore registration errors — ready will resolve if any SW is active
       }
 
-      if (!registration?.pushManager) {
+      let registration: ServiceWorkerRegistration;
+      try {
+        registration = await navigator.serviceWorker.ready;
+      } catch {
+        toast.error(
+          "Push notifications require a service worker. Try again after setup.",
+        );
+        setState("idle");
+        return;
+      }
+
+      if (!registration.pushManager) {
         toast.error(
           "Push notifications require a service worker. Try again after setup.",
         );
@@ -93,8 +115,11 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
         }),
       });
 
-      console.log("subscribe response:", await res.clone().json());
-      if (!res.ok) throw new Error("Subscribe failed");
+      if (!res.ok) {
+        const body = await res.text();
+        console.error("subscribe failed:", res.status, body);
+        throw new Error("Subscribe failed");
+      }
       setState("subscribed");
       window.location.reload();
     } catch (err) {

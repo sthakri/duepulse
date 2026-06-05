@@ -38,21 +38,21 @@ export async function POST(req: NextRequest) {
     auth: string;
   };
 
-  const { success: rateLimitOk } = await ratelimit.limit(userId);
-  if (!rateLimitOk) {
-    return NextResponse.json(
-      { error: "Too many requests. Try again later." },
-      { status: 429 }
-    );
-  }
-
-  const serviceClient = createServerClient<Database>(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-
   try {
+    const { success: rateLimitOk } = await ratelimit.limit(userId);
+    if (!rateLimitOk) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again later." },
+        { status: 429 }
+      );
+    }
+
+    const serviceClient = createServerClient<Database>(
+      env.NEXT_PUBLIC_SUPABASE_URL,
+      env.SUPABASE_SERVICE_ROLE_KEY,
+      { cookies: { getAll: () => [], setAll: () => {} } }
+    );
+
     await serviceClient
       .from("push_subscriptions")
       .upsert(
@@ -64,6 +64,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Push subscribe error:", err);
-    return NextResponse.json({ error: "Database error" }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
