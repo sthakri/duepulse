@@ -14,7 +14,7 @@ type PushState =
   | "denied"
   | "unsupported";
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
@@ -74,7 +74,7 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(
           env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-        ).buffer as ArrayBuffer,
+        ) as unknown as ArrayBuffer,
       });
 
       const { endpoint, keys } = subscription.toJSON() as {
