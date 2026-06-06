@@ -6,6 +6,7 @@ import WorkloadHeatmap from "@/components/WorkloadHeatmap";
 import ProductiveWindowsChart from "@/components/ProductiveWindowsChart";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import TestNotifButton from "@/components/TestNotifButton";
+import { LogOut } from "lucide-react";
 
 type CourseJoin = { name: string; color: string } | null;
 
@@ -17,6 +18,13 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  async function handleSignOut() {
+    "use server";
+    const s = await createClient();
+    await s.auth.signOut();
+    redirect("/login");
+  }
 
   const userId = user.id;
 
@@ -120,6 +128,14 @@ export default async function DashboardPage() {
       new Date(a.due_at) <= weekFromNow,
   ).length;
 
+  const initial = user?.email?.charAt(0).toUpperCase() ?? null;
+  const memberSince = user
+    ? new Date(user.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      })
+    : null;
+
   return (
     <div className="bg-slate-900 min-h-screen">
       <header className="border-b border-slate-700/50">
@@ -128,9 +144,30 @@ export default async function DashboardPage() {
             DuePulse
           </span>
           <div className="flex items-center gap-2 sm:gap-4">
-            <span className="text-slate-400 text-sm hidden sm:block">
-              {user.email}
-            </span>
+            <details className="relative group">
+              <summary className="list-none cursor-pointer select-none w-9 h-9 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-semibold text-sm hover:bg-indigo-500/30 transition-colors">
+                {initial}
+              </summary>
+              <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-slate-800 border border-slate-700 shadow-2xl overflow-hidden z-50">
+                <div className="px-4 py-3 border-b border-slate-700">
+                  <p className="text-white text-sm font-medium truncate">
+                    {user.email}
+                  </p>
+                  <p className="text-slate-400 text-xs mt-0.5">
+                    Member since {memberSince}
+                  </p>
+                </div>
+                <form action={handleSignOut}>
+                  <button
+                    type="submit"
+                    className="w-full flex items-center gap-2.5 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700/60 text-sm transition-colors bg-transparent"
+                  >
+                    <LogOut size={14} />
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            </details>
             <PushNotificationButton userId={userId} />
             {process.env.NODE_ENV === "development" && (
               <TestNotifButton userId={userId} />

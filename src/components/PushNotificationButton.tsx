@@ -93,6 +93,17 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
       }
 
       const vapidKey = urlBase64ToUint8Array(env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+      if (vapidKey.length !== 65 || vapidKey[0] !== 0x04) {
+        console.error(
+          "VAPID public key invalid: decoded length =",
+          vapidKey.length,
+          "first byte =",
+          vapidKey[0],
+        );
+        toast.error("Push configuration error — contact support");
+        setState("idle");
+        return;
+      }
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,

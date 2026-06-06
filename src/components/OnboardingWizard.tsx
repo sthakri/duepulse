@@ -65,19 +65,51 @@ export default function OnboardingWizard() {
   }
 
   async function handleEnableNotifications() {
+    const {
+      data: { user },
+    } = await createClient().auth.getUser();
+
+    if (!user) {
+      setStep(4);
+      return;
+    }
+
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
+      // Ensure service worker is registered and ready
+      let registration;
+      try {
+        const existing = await navigator.serviceWorker.getRegistration("/");
+        if (!existing) {
+          await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        }
+        registration = await navigator.serviceWorker.ready;
+      } catch {
+        // If service worker registration fails, we can't proceed
+        setStep(4);
+        return;
+      }
+
+      const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(
           env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
         ),
       });
+
+      // Extract the keys from the subscription
+      const json = sub.toJSON();
+      const keys = json.keys!;
+
       await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub),
+        body: JSON.stringify({
+          userId: user.id,
+          endpoint: sub.endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+        }),
       });
     }
     setStep(4);
