@@ -59,3 +59,7 @@ next-env.d.ts
 
 .trigger
 DEPLOYMENT.md
+
+# PWA service worker build artifacts (auto-generated on build)
+public/sw.js
+public/worker-*.js
