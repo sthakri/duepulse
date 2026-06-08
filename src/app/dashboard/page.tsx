@@ -184,7 +184,7 @@ export default async function DashboardPage() {
       <main className="max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="order-1 lg:order-0 lg:col-span-2 lg:col-start-1 lg:row-start-1 min-h-0 self-start">
-            <WorkloadHeatmap data={heatmapData} />
+            <WorkloadHeatmap data={heatmapData} userTz={userTz} />
           </div>
 
           <div className="order-2 lg:hidden rounded-xl bg-slate-800 p-6">
@@ -264,6 +264,7 @@ export default async function DashboardPage() {
                   }
                   canvas_assignment_id={String(a.canvas_assignment_id)}
                   course_color={course?.color}
+                  userTz={userTz}
                 />
               );
             })}

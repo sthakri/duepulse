@@ -195,6 +195,7 @@ export const nudgeEngine = schedules.task({
           nearest.title,
           nearest.due_at,
           courseName,
+          tzByUser.get(userId) ?? "America/Chicago",
         )
         console.log(`[nudge-engine] Section A uid=${userId} nudge text: "${nudgeText}"`)
 

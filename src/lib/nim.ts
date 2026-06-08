@@ -10,16 +10,34 @@ const nim = createOpenAI({
 export async function generateNudge(
   assignmentTitle: string,
   dueDate: string,
-  courseName: string
+  courseName: string,
+  userTz: string = "America/Chicago",
 ): Promise<string> {
-  const due = new Date(dueDate)
-  const now = new Date()
-  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate())
-  const diffDays = Math.round((dueMidnight.getTime() - nowMidnight.getTime()) / 86_400_000)
-  const relativeDay = diffDays === 0 ? 'today' : diffDays === 1 ? 'tomorrow' : `in ${diffDays} days`
-  const exactTime = due.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-  const dueDateReadable = `${relativeDay} at ${exactTime}`
+  const due = new Date(dueDate);
+  const now = new Date();
+
+  // Derive local date strings (YYYY-MM-DD) in the user's timezone for day-diff.
+  const dateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: userTz });
+  const nowStr = dateFmt.format(now);
+  const dueStr = dateFmt.format(due);
+
+  const nowMidnight = new Date(`${nowStr}T00:00:00Z`);
+  const dueMidnight = new Date(`${dueStr}T00:00:00Z`);
+  const diffDays = Math.round(
+    (dueMidnight.getTime() - nowMidnight.getTime()) / 86_400_000,
+  );
+
+  const relativeDay =
+    diffDays === 0 ? "today" : diffDays === 1 ? "tomorrow" : `in ${diffDays} days`;
+
+  // Format the exact due time in the user's local timezone.
+  const exactTime = new Intl.DateTimeFormat("en-US", {
+    timeZone: userTz,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(due);
+
+  const dueDateReadable = `${relativeDay} at ${exactTime}`;
 
   const { text } = await generateText({
     model: nim.chat("mistralai/mistral-large-3-675b-instruct-2512"),

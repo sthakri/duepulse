@@ -5,6 +5,7 @@ import * as d3 from "d3";
 
 interface Props {
   data: Array<{ due_at: string; assignment_count: number }>;
+  userTz: string;
 }
 
 interface DayEntry {
@@ -30,14 +31,14 @@ const MONTHS = [
 ];
 
 function localDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
 function fmtShort(d: Date): string {
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
-export default function WorkloadHeatmap({ data }: Props) {
+export default function WorkloadHeatmap({ data, userTz }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -70,25 +71,27 @@ export default function WorkloadHeatmap({ data }: Props) {
       .scaleSequential(d3.interpolateRgb("#1e3a5f", "#ef4444"))
       .domain([0, maxDomain]);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = localDateStr(today);
+    // Derive "today" in the user's local timezone (works correctly even on the UTC server).
+    const now = new Date();
+    const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: userTz }).format(now);
 
-    const dow = today.getDay();
+    // Parse the local YYYY-MM-DD string as a UTC midnight date to get JS day-of-week math right.
+    const today = new Date(`${todayStr}T00:00:00Z`);
+    const dow = today.getUTCDay();
     const monday = new Date(today);
-    monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    monday.setUTCDate(today.getUTCDate() - (dow === 0 ? 6 : dow - 1));
 
     const days: DayEntry[] = Array.from({ length: 42 }, (_, i) => {
       const col = Math.floor(i / 7);
       const row = i % 7;
       const d = new Date(monday);
-      d.setDate(monday.getDate() + col * 7 + row);
+      d.setUTCDate(monday.getUTCDate() + col * 7 + row);
       return { date: d, dateStr: localDateStr(d), col, row };
     });
 
     const weekStarts: Date[] = Array.from({ length: 6 }, (_, i) => {
       const d = new Date(monday);
-      d.setDate(monday.getDate() + i * 7);
+      d.setUTCDate(monday.getUTCDate() + i * 7);
       return d;
     });
 

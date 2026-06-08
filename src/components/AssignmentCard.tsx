@@ -8,26 +8,49 @@ interface AssignmentCardProps {
   points_possible: number | null
   canvas_assignment_id: string
   course_color?: string
+  userTz: string
 }
 
-function getDueDateInfo(due_at: string): {
+function getDueDateInfo(
+  due_at: string,
+  userTz: string,
+): {
   label: string
   isOverdue: boolean
   isDueSoon: boolean
 } {
-  const now = new Date()
   const due = new Date(due_at)
-  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate())
-  const diffDays = Math.round((dueMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24))
+  const now = new Date()
 
-  const relativeLabel = diffDays < 0
-    ? `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) > 1 ? 's' : ''}`
-    : diffDays === 0 ? 'Due today'
-    : diffDays === 1 ? 'Due tomorrow'
-    : `Due in ${diffDays} days`
+  // Derive today's local date string (YYYY-MM-DD) in the user's timezone.
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: userTz })
+  const todayStr = fmt.format(now)
+  const dueDayStr = fmt.format(due)
 
-  const exactTime = due.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+  // Parse the YYYY-MM-DD strings as UTC midnight dates for clean day-diff math.
+  const todayMidnight = new Date(`${todayStr}T00:00:00Z`)
+  const dueMidnight = new Date(`${dueDayStr}T00:00:00Z`)
+  const diffDays = Math.round(
+    (dueMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24),
+  )
+
+  const relativeLabel =
+    diffDays < 0
+      ? `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) > 1 ? "s" : ""}`
+      : diffDays === 0
+        ? "Due today"
+        : diffDays === 1
+          ? "Due tomorrow"
+          : `Due in ${diffDays} days`
+
+  // Format the exact local time in the user's timezone (e.g. "11:59 PM CDT").
+  const exactTime = new Intl.DateTimeFormat("en-US", {
+    timeZone: userTz,
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(due)
+
   const label = diffDays >= 0 ? `${relativeLabel} at ${exactTime}` : relativeLabel
 
   return { label, isOverdue: diffDays < 0, isDueSoon: diffDays >= 0 && diffDays <= 1 }
@@ -41,8 +64,9 @@ export default function AssignmentCard({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   canvas_assignment_id,
   course_color = "#6366f1",
+  userTz,
 }: AssignmentCardProps) {
-  const dueInfo = due_at ? getDueDateInfo(due_at) : null
+  const dueInfo = due_at ? getDueDateInfo(due_at, userTz) : null
   const isOverdue = dueInfo?.isOverdue ?? false
   const isDueSoon = dueInfo?.isDueSoon ?? false
 
