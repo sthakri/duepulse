@@ -216,7 +216,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
     const ro = new ResizeObserver(() => redraw());
     if (wrapperRef.current) ro.observe(wrapperRef.current);
     return () => ro.disconnect();
-  }, [data]);
+  }, [data, userTz]);
 
   return (
     <div className="rounded-xl bg-slate-800 p-4 sm:p-6">

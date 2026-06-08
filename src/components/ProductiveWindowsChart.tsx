@@ -5,7 +5,12 @@ interface Props {
 }
 
 function formatHour(h: number): string {
-  return new Date(0, 0, 0, h).toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })
+  // Use a fixed UTC date at hour h to format the hour consistently across environments.
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    hour12: true,
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(2000, 0, 1, h, 0, 0)));
 }
 
 function hourEmoji(h: number): string {

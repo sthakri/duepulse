@@ -130,10 +130,11 @@ export default async function DashboardPage() {
 
   const initial = user?.email?.charAt(0).toUpperCase() ?? null;
   const memberSince = user
-    ? new Date(user.created_at).toLocaleDateString("en-US", {
+    ? new Intl.DateTimeFormat("en-US", {
         month: "short",
         year: "numeric",
-      })
+        timeZone: userTz,
+      }).format(new Date(user.created_at))
     : null;
 
   return (

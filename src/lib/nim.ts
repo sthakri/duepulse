@@ -15,20 +15,17 @@ export async function generateNudge(
 ): Promise<string> {
   const due = new Date(dueDate);
   const now = new Date();
+  const msUntilDue = due.getTime() - now.getTime();
 
-  // Derive local date strings (YYYY-MM-DD) in the user's timezone for day-diff.
-  const dateFmt = new Intl.DateTimeFormat("en-CA", { timeZone: userTz });
-  const nowStr = dateFmt.format(now);
-  const dueStr = dateFmt.format(due);
-
-  const nowMidnight = new Date(`${nowStr}T00:00:00Z`);
-  const dueMidnight = new Date(`${dueStr}T00:00:00Z`);
-  const diffDays = Math.round(
-    (dueMidnight.getTime() - nowMidnight.getTime()) / 86_400_000,
-  );
-
+  // Use exact time difference — not calendar-day diff — for the relative label.
   const relativeDay =
-    diffDays === 0 ? "today" : diffDays === 1 ? "tomorrow" : `in ${diffDays} days`;
+    msUntilDue < 0
+      ? "past due"
+      : msUntilDue <= 24 * 60 * 60 * 1000
+        ? "today"
+        : msUntilDue <= 48 * 60 * 60 * 1000
+          ? "tomorrow"
+          : `in ${Math.round(msUntilDue / 86_400_000)} days`;
 
   // Format the exact due time in the user's local timezone.
   const exactTime = new Intl.DateTimeFormat("en-US", {

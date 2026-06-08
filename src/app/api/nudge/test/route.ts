@@ -105,10 +105,19 @@ export async function GET(req: NextRequest) {
     const courseName =
       (assignment.courses as { name: string } | null)?.name ?? "Unknown Course"
 
+    // Fetch user's timezone for accurate local time in the nudge text.
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("timezone")
+      .eq("id", userId)
+      .maybeSingle()
+    const userTz = profile?.timezone ?? "America/Chicago"
+
     const nudgeText = await generateNudge(
       assignment.title,
       assignment.due_at,
       courseName,
+      userTz,
     )
 
     await sendPushNotification(subscription, nudgeText)

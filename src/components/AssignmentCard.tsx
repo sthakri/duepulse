@@ -21,29 +21,25 @@ function getDueDateInfo(
 } {
   const due = new Date(due_at)
   const now = new Date()
+  const msUntilDue = due.getTime() - now.getTime()
 
-  // Derive today's local date string (YYYY-MM-DD) in the user's timezone.
+  // ── Exact-time flags ───────────────────────────────────────────────────────
+  // isOverdue: the actual moment has already passed (not just the calendar day)
+  const isOverdue = msUntilDue < 0
+  // isDueSoon: not overdue, and due within the next 24 hours
+  const isDueSoon = !isOverdue && msUntilDue <= 24 * 60 * 60 * 1000
+
+  // ── Calendar-day diff in the user's timezone (for relative label text) ─────
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: userTz })
   const todayStr = fmt.format(now)
   const dueDayStr = fmt.format(due)
-
-  // Parse the YYYY-MM-DD strings as UTC midnight dates for clean day-diff math.
   const todayMidnight = new Date(`${todayStr}T00:00:00Z`)
   const dueMidnight = new Date(`${dueDayStr}T00:00:00Z`)
   const diffDays = Math.round(
     (dueMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24),
   )
 
-  const relativeLabel =
-    diffDays < 0
-      ? `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) > 1 ? "s" : ""}`
-      : diffDays === 0
-        ? "Due today"
-        : diffDays === 1
-          ? "Due tomorrow"
-          : `Due in ${diffDays} days`
-
-  // Format the exact local time in the user's timezone (e.g. "11:59 PM CDT").
+  // ── Exact due time in user's timezone (e.g. "11:59 PM CDT") ───────────────
   const exactTime = new Intl.DateTimeFormat("en-US", {
     timeZone: userTz,
     hour: "numeric",
@@ -51,9 +47,31 @@ function getDueDateInfo(
     timeZoneName: "short",
   }).format(due)
 
-  const label = diffDays >= 0 ? `${relativeLabel} at ${exactTime}` : relativeLabel
+  // ── Label ──────────────────────────────────────────────────────────────────
+  let label: string
+  if (isOverdue) {
+    if (diffDays <= -1) {
+      // Past calendar day(s)
+      const daysAgo = Math.abs(diffDays)
+      label = `Overdue by ${daysAgo} day${daysAgo > 1 ? "s" : ""}`
+    } else {
+      // Same calendar day but time has passed — show hours overdue
+      const hoursOverdue = Math.floor(Math.abs(msUntilDue) / 3_600_000)
+      label = hoursOverdue >= 1
+        ? `Overdue by ${hoursOverdue}h (was due at ${exactTime})`
+        : `Overdue (was due at ${exactTime})`
+    }
+  } else {
+    const relativeLabel =
+      diffDays === 0
+        ? "Due today"
+        : diffDays === 1
+          ? "Due tomorrow"
+          : `Due in ${diffDays} days`
+    label = `${relativeLabel} at ${exactTime}`
+  }
 
-  return { label, isOverdue: diffDays < 0, isDueSoon: diffDays >= 0 && diffDays <= 1 }
+  return { label, isOverdue, isDueSoon }
 }
 
 export default function AssignmentCard({
@@ -94,7 +112,7 @@ export default function AssignmentCard({
           </span>
         )}
         {isDueSoon && (
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-red-500 text-white">
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-amber-500 text-white">
             Due Soon
           </span>
         )}
