@@ -66,19 +66,13 @@ export async function GET(req: NextRequest) {
     { cookies: { getAll: () => [], setAll: () => {} } }
   )
 
-  const { data: sub } = await serviceClient
+  const { data: subs } = await serviceClient
     .from("push_subscriptions")
     .select("endpoint, p256dh, auth")
     .eq("user_id", userId)
-    .maybeSingle()
 
-  if (!sub) {
+  if (!subs || subs.length === 0) {
     return NextResponse.json({ error: "No push subscription found" }, { status: 400 })
-  }
-
-  const subscription: webpush.PushSubscription = {
-    endpoint: sub.endpoint,
-    keys: { p256dh: sub.p256dh, auth: sub.auth },
   }
 
   const now = new Date()
@@ -120,7 +114,26 @@ export async function GET(req: NextRequest) {
       userTz,
     )
 
-    await sendPushNotification(subscription, nudgeText)
+    // Send to ALL devices for this user.
+    const results: string[] = []
+    for (const sub of subs) {
+      const subscription: webpush.PushSubscription = {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth },
+      }
+      try {
+        await sendPushNotification(subscription, nudgeText)
+        results.push(`✓ ${sub.endpoint.slice(0, 50)}…`)
+      } catch (err: unknown) {
+        const statusCode = (err as { statusCode?: number })?.statusCode
+        if (statusCode === 410 || statusCode === 404) {
+          await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
+          results.push(`✗ stale (${statusCode}), deleted`)
+        } else {
+          results.push(`✗ error: ${String(err)}`)
+        }
+      }
+    }
 
     await serviceClient.from("nudge_logs").insert({
       user_id: userId,
@@ -129,7 +142,7 @@ export async function GET(req: NextRequest) {
       sent_at: now.toISOString(),
     })
 
-    return NextResponse.json({ sent: true, type, assignment: assignment.title, nudge: nudgeText })
+    return NextResponse.json({ sent: true, type, assignment: assignment.title, nudge: nudgeText, devices: results })
   }
 
   // ── Deadline nudge (12h / 6h / 1h) ──────────────────────────────────────────
@@ -184,7 +197,27 @@ export async function GET(req: NextRequest) {
   }
 
   const message = buildDeadlineMessage(toSend, threshold.label)
-  await sendPushNotification(subscription, message, threshold.notifTitle)
+
+  // Send to ALL devices for this user.
+  const results: string[] = []
+  for (const sub of subs) {
+    const subscription: webpush.PushSubscription = {
+      endpoint: sub.endpoint,
+      keys: { p256dh: sub.p256dh, auth: sub.auth },
+    }
+    try {
+      await sendPushNotification(subscription, message, threshold.notifTitle)
+      results.push(`✓ ${sub.endpoint.slice(0, 50)}…`)
+    } catch (err: unknown) {
+      const statusCode = (err as { statusCode?: number })?.statusCode
+      if (statusCode === 410 || statusCode === 404) {
+        await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
+        results.push(`✗ stale (${statusCode}), deleted`)
+      } else {
+        results.push(`✗ error: ${String(err)}`)
+      }
+    }
+  }
 
   await serviceClient.from("nudge_logs").insert(
     toSend.map((a) => ({
@@ -200,6 +233,7 @@ export async function GET(req: NextRequest) {
     type,
     assignments: toSend.map((a) => a.title),
     message,
+    devices: results,
   })
 }
 

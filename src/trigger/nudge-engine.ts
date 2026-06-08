@@ -93,7 +93,12 @@ export const nudgeEngine = schedules.task({
 
     const allWindows = windowsResult.data ?? []
     const allSubs = subsResult.data ?? []
-    const subsByUser = new Map(allSubs.map((s) => [s.user_id, s]))
+    const subsByUser = new Map<string, typeof allSubs>()
+    for (const s of allSubs) {
+      const existing = subsByUser.get(s.user_id) ?? []
+      existing.push(s)
+      subsByUser.set(s.user_id, existing)
+    }
 
     console.log(`[nudge-engine] productive_windows rows: ${allWindows.length}, push_subscriptions rows: ${allSubs.length}`)
     if (windowsResult.error) console.error("[nudge-engine] productive_windows query error:", windowsResult.error)
@@ -146,8 +151,8 @@ export const nudgeEngine = schedules.task({
 
     const sectionAResults = await Promise.allSettled(
       productiveUserIds.map(async (userId) => {
-        const sub = subsByUser.get(userId)
-        if (!sub) {
+        const subs = subsByUser.get(userId) ?? []
+        if (subs.length === 0) {
           console.log(`[nudge-engine] Section A uid=${userId} no push subscription — skipping`)
           return
         }
@@ -199,15 +204,27 @@ export const nudgeEngine = schedules.task({
         )
         console.log(`[nudge-engine] Section A uid=${userId} nudge text: "${nudgeText}"`)
 
-        const subscription: webpush.PushSubscription = {
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth },
+        // Send to ALL devices for this user.
+        for (const sub of subs) {
+          const subscription: webpush.PushSubscription = {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+          }
+          try {
+            await sendPushNotification(subscription, nudgeText)
+            console.log(`[nudge-engine] Section A uid=${userId} push sent to ${sub.endpoint.slice(0, 50)}… ✓`)
+          } catch (err: unknown) {
+            const statusCode = (err as { statusCode?: number })?.statusCode
+            if (statusCode === 410 || statusCode === 404) {
+              // Subscription expired — clean up
+              console.log(`[nudge-engine] Section A uid=${userId} stale sub (${statusCode}), deleting`)
+              await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
+            } else {
+              console.error(`[nudge-engine] Section A uid=${userId} push failed:`, err)
+            }
+          }
         }
-
-        console.log(`[nudge-engine] Section A uid=${userId} sending push notification`)
-        await sendPushNotification(subscription, nudgeText)
         productiveWindowSent++
-        console.log(`[nudge-engine] Section A uid=${userId} push sent successfully ✓`)
 
         await serviceClient.from("nudge_logs").insert({
           user_id: userId,
@@ -286,9 +303,19 @@ export const nudgeEngine = schedules.task({
           }
 
           console.log(`[nudge-engine] Section B uid=${userId} sending ${threshold.type} deadline nudge for ${toSend.length} assignment(s)`)
-          await sendPushNotification(subscription, message, threshold.notifTitle)
-          deadlineSent++
-          console.log(`[nudge-engine] Section B uid=${userId} ${threshold.type} push sent successfully ✓`)
+          try {
+            await sendPushNotification(subscription, message, threshold.notifTitle)
+            deadlineSent++
+            console.log(`[nudge-engine] Section B uid=${userId} ${threshold.type} push sent successfully ✓`)
+          } catch (err: unknown) {
+            const statusCode = (err as { statusCode?: number })?.statusCode
+            if (statusCode === 410 || statusCode === 404) {
+              console.log(`[nudge-engine] Section B uid=${userId} stale sub (${statusCode}), deleting`)
+              await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
+              return // Skip remaining thresholds for this dead subscription
+            }
+            console.error(`[nudge-engine] Section B uid=${userId} push failed:`, err)
+          }
 
           // Insert one nudge_log row per assignment covered by this notification.
           await serviceClient.from("nudge_logs").insert(

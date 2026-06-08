@@ -3,7 +3,7 @@ self.addEventListener('push', function(event) {
   event.waitUntil(
     self.registration.showNotification(data.title || 'DuePulse', {
       body: data.body || 'You have an assignment due soon',
-      icon: '/icons/192.png',
+      icon: '/icons/icon-192.png',
     })
   )
 })
