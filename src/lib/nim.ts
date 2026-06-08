@@ -22,7 +22,7 @@ export async function generateNudge(
   const dueDateReadable = `${relativeDay} at ${exactTime}`
 
   const { text } = await generateText({
-    model: nim("mistralai/mistral-large-3-675b-instruct-2512"),
+    model: nim.chat("mistralai/mistral-large-3-675b-instruct-2512"),
     prompt: `You are a funny, warm study buddy texting a student a push notification.
   Assignment: "${assignmentTitle}" for ${courseName}, due ${dueDateReadable}.
   Write ONE push notification under 120 characters.

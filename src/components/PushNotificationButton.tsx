@@ -41,11 +41,35 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
       // Only show "subscribed" if the browser actually has an active push subscription.
       // If the DB write failed on a previous attempt, permission is granted but no
       // subscription exists yet — reset to idle so the user can retry.
+      // Also silently re-associate the subscription with the current userId in case
+      // a different account was logged in when the subscription was originally saved.
       navigator.serviceWorker
         .getRegistration("/")
         .then((reg) => reg?.pushManager.getSubscription() ?? null)
-        .then((sub) => {
-          setState(sub ? "subscribed" : "idle");
+        .then(async (sub) => {
+          if (!sub) {
+            setState("idle");
+            return;
+          }
+          const json = sub.toJSON() as {
+            endpoint: string;
+            keys: { p256dh: string; auth: string };
+          };
+          try {
+            await fetch("/api/push/subscribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId,
+                endpoint: json.endpoint,
+                p256dh: json.keys.p256dh,
+                auth: json.keys.auth,
+              }),
+            });
+          } catch {
+            // Best-effort — don't block UI if the re-association request fails
+          }
+          setState("subscribed");
         })
         .catch(() => setState("idle"));
     }

@@ -52,6 +52,11 @@ function buildDeadlineMessage(
   return `${assignments[0].title}, ${assignments[1].title}, and ${rest} more due in ${label}!`
 }
 
+// Maps en-US short weekday names → JS day-of-week numbers (0 = Sun … 6 = Sat)
+const DAY_NAMES: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const nudgeEngine = schedules.task({
@@ -64,6 +69,7 @@ export const nudgeEngine = schedules.task({
     }
 
     const now = new Date()
+    console.log(`[nudge-engine] Run started at ${now.toISOString()}`)
 
     const serviceClient = createServerClient<Database>(
       env.NEXT_PUBLIC_SUPABASE_URL,
@@ -78,7 +84,7 @@ export const nudgeEngine = schedules.task({
     const [windowsResult, subsResult] = await Promise.all([
       serviceClient
         .from("productive_windows")
-        .select("user_id, hour_of_day")
+        .select("user_id, hour_of_day, day_of_week")
         .gt("score", 0),
       serviceClient
         .from("push_subscriptions")
@@ -89,8 +95,12 @@ export const nudgeEngine = schedules.task({
     const allSubs = subsResult.data ?? []
     const subsByUser = new Map(allSubs.map((s) => [s.user_id, s]))
 
+    console.log(`[nudge-engine] productive_windows rows: ${allWindows.length}, push_subscriptions rows: ${allSubs.length}`)
+    if (windowsResult.error) console.error("[nudge-engine] productive_windows query error:", windowsResult.error)
+    if (subsResult.error) console.error("[nudge-engine] push_subscriptions query error:", subsResult.error)
+
     // ── Section A: Productive Window Nudges ───────────────────────────────────
-    // Fire only during the user's local productive hours, at most once per 20h.
+    // Fire only during the user's local productive day+hour, at most once per 20h.
 
     const uniqueUserIds = [...new Set(allWindows.map((w) => w.user_id))]
 
@@ -103,34 +113,44 @@ export const nudgeEngine = schedules.task({
       (userProfiles ?? []).map((p) => [p.id, p.timezone ?? "America/Chicago"]),
     )
 
-    const windowsByUser = new Map<string, Set<number>>()
+    // Key: "${day_of_week}:${hour_of_day}" — must match both day AND hour, not just hour.
+    const windowsByUser = new Map<string, Set<string>>()
     for (const w of allWindows) {
       if (!windowsByUser.has(w.user_id)) windowsByUser.set(w.user_id, new Set())
-      windowsByUser.get(w.user_id)!.add(w.hour_of_day)
+      windowsByUser.get(w.user_id)!.add(`${w.day_of_week}:${w.hour_of_day}`)
     }
 
     const productiveUserIds = uniqueUserIds.filter((uid) => {
       const tz = tzByUser.get(uid) ?? "America/Chicago"
-      const localHour = parseInt(
-        new Intl.DateTimeFormat("en-US", {
-          timeZone: tz,
-          hour: "numeric",
-          hourCycle: "h23",
-        }).format(now),
-        10,
-      )
-      return windowsByUser.get(uid)?.has(localHour) ?? false
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "numeric",
+        hourCycle: "h23",
+        weekday: "short",
+      }).formatToParts(now)
+      const localHour = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10)
+      const weekdayStr = parts.find((p) => p.type === "weekday")?.value ?? "Sun"
+      const localDay = DAY_NAMES[weekdayStr] ?? 0
+      const key = `${localDay}:${localHour}`
+      const matches = windowsByUser.get(uid)?.has(key) ?? false
+      console.log(`[nudge-engine] Section A uid=${uid} tz=${tz} day=${localDay} hour=${localHour} key=${key} matches=${matches}`)
+      return matches
     })
 
-    const fiveDaysFromNow = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000)
+    // Extended to 14 days so assignments due next week are always found.
+    const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
     const twentyHoursAgo = new Date(now.getTime() - 20 * 60 * 60 * 1000)
 
+    console.log(`[nudge-engine] Section A: ${productiveUserIds.length} user(s) in productive window`)
     let productiveWindowSent = 0
 
-    await Promise.allSettled(
+    const sectionAResults = await Promise.allSettled(
       productiveUserIds.map(async (userId) => {
         const sub = subsByUser.get(userId)
-        if (!sub) return
+        if (!sub) {
+          console.log(`[nudge-engine] Section A uid=${userId} no push subscription — skipping`)
+          return
+        }
 
         // Dedup: skip if a productive_window nudge was already sent in the last 20 hours.
         const { data: recentLog } = await serviceClient
@@ -141,19 +161,27 @@ export const nudgeEngine = schedules.task({
           .gte("sent_at", twentyHoursAgo.toISOString())
           .maybeSingle()
 
-        if (recentLog) return
+        if (recentLog) {
+          console.log(`[nudge-engine] Section A uid=${userId} dedup hit — nudge already sent in last 20h`)
+          return
+        }
 
-        // Fetch up to 3 upcoming incomplete assignments (pass nearest to NIM).
-        const { data: assignments } = await serviceClient
+        // Fetch up to 3 upcoming incomplete assignments due within 14 days (pass nearest to NIM).
+        const { data: assignments, error: assignmentsError } = await serviceClient
           .from("assignments")
           .select("id, title, due_at, courses(name)")
           .eq("user_id", userId)
           .eq("is_completed", false)
           .gt("due_at", now.toISOString())
-          .lt("due_at", fiveDaysFromNow.toISOString())
+          .lt("due_at", fourteenDaysFromNow.toISOString())
           .order("due_at", { ascending: true })
           .limit(3)
 
+        if (assignmentsError) {
+          console.error(`[nudge-engine] Section A uid=${userId} assignments query error:`, assignmentsError)
+          return
+        }
+        console.log(`[nudge-engine] Section A uid=${userId} upcoming assignments (14d window): ${assignments?.length ?? 0}`)
         if (!assignments || assignments.length === 0) return
 
         const nearest = assignments[0]
@@ -162,19 +190,23 @@ export const nudgeEngine = schedules.task({
         const courseName =
           (nearest.courses as { name: string } | null)?.name ?? "Unknown Course"
 
+        console.log(`[nudge-engine] Section A uid=${userId} calling generateNudge for "${nearest.title}" (${courseName})`)
         const nudgeText = await generateNudge(
           nearest.title,
           nearest.due_at,
           courseName,
         )
+        console.log(`[nudge-engine] Section A uid=${userId} nudge text: "${nudgeText}"`)
 
         const subscription: webpush.PushSubscription = {
           endpoint: sub.endpoint,
           keys: { p256dh: sub.p256dh, auth: sub.auth },
         }
 
+        console.log(`[nudge-engine] Section A uid=${userId} sending push notification`)
         await sendPushNotification(subscription, nudgeText)
         productiveWindowSent++
+        console.log(`[nudge-engine] Section A uid=${userId} push sent successfully ✓`)
 
         await serviceClient.from("nudge_logs").insert({
           user_id: userId,
@@ -185,6 +217,14 @@ export const nudgeEngine = schedules.task({
       }),
     )
 
+    for (let i = 0; i < sectionAResults.length; i++) {
+      const r = sectionAResults[i]
+      if (r.status === "rejected") {
+        console.error(`[nudge-engine] Section A uid=${productiveUserIds[i]} threw:`, r.reason)
+      }
+    }
+    console.log(`[nudge-engine] Section A done: productive_window_sent=${productiveWindowSent}`)
+
     // ── Section B: Deadline Nudges ────────────────────────────────────────────
     // Fire for ALL users with push subscriptions, regardless of productive hours.
     // Thresholds: 12h (±1h window), 6h (±1h window), 1h (±30m window).
@@ -192,7 +232,8 @@ export const nudgeEngine = schedules.task({
     const thirteenHoursFromNow = new Date(now.getTime() + 13 * 3_600_000)
     let deadlineSent = 0
 
-    await Promise.allSettled(
+    console.log(`[nudge-engine] Section B: processing ${allSubs.length} push subscription(s)`)
+    const sectionBResults = await Promise.allSettled(
       allSubs.map(async (sub) => {
         const userId = sub.user_id
 
@@ -206,6 +247,7 @@ export const nudgeEngine = schedules.task({
           .lte("due_at", thirteenHoursFromNow.toISOString())
           .order("due_at", { ascending: true })
 
+        console.log(`[nudge-engine] Section B uid=${userId} assignments in 13h window: ${upcomingAssignments?.length ?? 0}`)
         if (!upcomingAssignments || upcomingAssignments.length === 0) return
 
         // Fetch already-sent deadline logs for this user's upcoming assignments.
@@ -242,8 +284,10 @@ export const nudgeEngine = schedules.task({
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           }
 
+          console.log(`[nudge-engine] Section B uid=${userId} sending ${threshold.type} deadline nudge for ${toSend.length} assignment(s)`)
           await sendPushNotification(subscription, message, threshold.notifTitle)
           deadlineSent++
+          console.log(`[nudge-engine] Section B uid=${userId} ${threshold.type} push sent successfully ✓`)
 
           // Insert one nudge_log row per assignment covered by this notification.
           await serviceClient.from("nudge_logs").insert(
@@ -257,6 +301,14 @@ export const nudgeEngine = schedules.task({
         }
       }),
     )
+
+    for (let i = 0; i < sectionBResults.length; i++) {
+      const r = sectionBResults[i]
+      if (r.status === "rejected") {
+        console.error(`[nudge-engine] Section B uid=${allSubs[i].user_id} threw:`, r.reason)
+      }
+    }
+    console.log(`[nudge-engine] Section B done: deadline_sent=${deadlineSent}`)
 
     return { productive_window_sent: productiveWindowSent, deadline_sent: deadlineSent }
   },

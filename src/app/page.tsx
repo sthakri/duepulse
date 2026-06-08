@@ -33,7 +33,7 @@ export default async function HomePage() {
     const lastSignIn = new Date(user.last_sign_in_at);
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     if (lastSignIn < sevenDaysAgo) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
       redirect("/login");
     }
   }
@@ -41,7 +41,7 @@ export default async function HomePage() {
   async function handleSignOut() {
     "use server";
     const s = await createClient();
-    await s.auth.signOut();
+    await s.auth.signOut({ scope: "local" });
     redirect("/login");
   }
 
