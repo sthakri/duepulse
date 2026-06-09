@@ -8,11 +8,9 @@ import { useDuePulseStore } from "@/lib/store";
 
 interface Props {
   userId: string;
-  token: string;
-  domain: string;
 }
 
-export default function SyncNowButton({ userId, token, domain }: Props) {
+export default function SyncNowButton({ userId }: Props) {
   const router = useRouter();
   const isSyncing = useDuePulseStore((s) => s.isSyncing);
   const setIsSyncing = useDuePulseStore((s) => s.setIsSyncing);
@@ -20,10 +18,12 @@ export default function SyncNowButton({ userId, token, domain }: Props) {
   async function handleSync() {
     setIsSyncing(true);
     try {
+      // No token/domain in the body — the secured API reads credentials from
+      // the authenticated session and the user's profile row in the DB.
       const res = await fetch("/api/canvas/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, token, domain }),
+        body: JSON.stringify({ userId }),
       });
       const data = (await res.json()) as {
         success?: boolean;

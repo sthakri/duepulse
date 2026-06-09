@@ -26,54 +26,51 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export default function PushNotificationButton({ userId }: { userId: string }) {
-  const [state, setState] = useState<PushState>("idle");
+  const [state, setState] = useState<PushState>(() => {
+    // Lazy initializer runs synchronously on mount to set the correct initial
+    // state without triggering an extra render from setState inside useEffect.
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return "unsupported";
+    }
+    if (Notification.permission === "denied") return "denied";
+    if (Notification.permission === "granted") return "idle"; // async check below will set "subscribed"
+    return "idle";
+  });
 
+  // Re-associate existing push subscription with the current userId on mount
+  // and whenever the userId changes (e.g. account switch).
   useEffect(() => {
-    if (!("Notification" in window)) {
-      setState("unsupported");
-      return;
-    }
-    if (Notification.permission === "denied") {
-      setState("denied");
-      return;
-    }
-    if (Notification.permission === "granted") {
-      // Only show "subscribed" if the browser actually has an active push subscription.
-      // If the DB write failed on a previous attempt, permission is granted but no
-      // subscription exists yet — reset to idle so the user can retry.
-      // Also silently re-associate the subscription with the current userId in case
-      // a different account was logged in when the subscription was originally saved.
-      navigator.serviceWorker
-        .getRegistration("/")
-        .then((reg) => reg?.pushManager.getSubscription() ?? null)
-        .then(async (sub) => {
-          if (!sub) {
-            setState("idle");
-            return;
-          }
-          const json = sub.toJSON() as {
-            endpoint: string;
-            keys: { p256dh: string; auth: string };
-          };
-          try {
-            await fetch("/api/push/subscribe", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                userId,
-                endpoint: json.endpoint,
-                p256dh: json.keys.p256dh,
-                auth: json.keys.auth,
-              }),
-            });
-          } catch {
-            // Best-effort — don't block UI if the re-association request fails
-          }
-          setState("subscribed");
-        })
-        .catch(() => setState("idle"));
-    }
-  }, []);
+    if (Notification.permission !== "granted") return;
+
+    navigator.serviceWorker
+      .getRegistration("/")
+      .then((reg) => reg?.pushManager.getSubscription() ?? null)
+      .then(async (sub) => {
+        if (!sub) {
+          setState("idle");
+          return;
+        }
+        const json = sub.toJSON() as {
+          endpoint: string;
+          keys: { p256dh: string; auth: string };
+        };
+        try {
+          await fetch("/api/push/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              endpoint: json.endpoint,
+              p256dh: json.keys.p256dh,
+              auth: json.keys.auth,
+            }),
+          });
+        } catch {
+          // Best-effort — don't block UI if the re-association request fails
+        }
+        setState("subscribed");
+      })
+      .catch(() => setState("idle"));
+  }, [userId]);
 
   async function handleClick() {
     if (state !== "idle") return;
@@ -143,7 +140,6 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
           endpoint,
           p256dh: keys.p256dh,
           auth: keys.auth,

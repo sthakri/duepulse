@@ -105,7 +105,6 @@ export default function OnboardingWizard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.id,
           endpoint: sub.endpoint,
           p256dh: keys.p256dh,
           auth: keys.auth,
@@ -116,15 +115,34 @@ export default function OnboardingWizard() {
   }
 
   async function handleGoToDashboard() {
+    const supabase = createClient();
     const {
       data: { user },
-    } = await createClient().auth.getUser();
+    } = await supabase.auth.getUser();
     if (user) {
-      await createClient()
+      await supabase
         .from("profiles")
         .upsert({ id: user.id, onboarding_complete: true });
+
+      // Read the canvas credentials that were saved during step 1.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("canvas_token, canvas_domain")
+        .eq("id", user.id)
+        .single();
+
+      // Fire-and-forget: sync runs in background, navigation is not blocked.
+      // Body is now correctly populated so the API won't 400.
+      fetch("/api/canvas/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          token: profile?.canvas_token ?? "",
+          domain: profile?.canvas_domain ?? "",
+        }),
+      });
     }
-    fetch("/api/canvas/sync", { method: "POST" });
     router.push("/dashboard");
   }
 

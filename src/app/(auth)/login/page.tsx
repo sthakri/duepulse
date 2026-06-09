@@ -47,7 +47,25 @@ export default function LoginPage() {
       await new Promise((resolve) => setTimeout(resolve, 100));
       router.push("/onboarding");
     } else {
-      router.push("/dashboard");
+      // Check onboarding state before redirecting — users who signed up but
+      // never completed onboarding must be sent back to /onboarding, not /dashboard.
+      const supabase = createClient();
+      const {
+        data: { user: signedInUser },
+      } = await supabase.auth.getUser();
+      const { data: profile } = signedInUser
+        ? await supabase
+            .from("profiles")
+            .select("onboarding_complete, canvas_token")
+            .eq("id", signedInUser.id)
+            .single()
+        : { data: null };
+
+      if (profile?.onboarding_complete && profile?.canvas_token) {
+        router.push("/dashboard");
+      } else {
+        router.push("/onboarding");
+      }
     }
   }
 

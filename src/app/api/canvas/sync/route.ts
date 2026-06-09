@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { getCanvasAssignments } from "@/lib/canvas";
 import { Database } from "@/database.types";
@@ -14,28 +15,20 @@ const ratelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(5, "1 h"),
 });
 
-export async function POST(req: NextRequest) {
-  const body: unknown = await req.json();
+export async function POST() {
+  // ── 1. Authenticate via session cookie — never trust body.userId ──────────
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    typeof (body as Record<string, unknown>).userId !== "string" ||
-    typeof (body as Record<string, unknown>).token !== "string" ||
-    typeof (body as Record<string, unknown>).domain !== "string" ||
-    !(body as Record<string, unknown>).userId ||
-    !(body as Record<string, unknown>).token ||
-    !(body as Record<string, unknown>).domain
-  ) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { userId, token, domain } = body as {
-    userId: string;
-    token: string;
-    domain: string;
-  };
+  const userId = user.id;
 
+  // ── 2. Rate-limit by the verified user ID ─────────────────────────────────
   const { success: rateLimitOk } = await ratelimit.limit(userId);
   if (!rateLimitOk) {
     return NextResponse.json(
@@ -44,6 +37,26 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ── 3. Read Canvas credentials from DB — not from request body ────────────
+  // Credentials were saved to the profile during onboarding. Reading them
+  // server-side prevents any caller from writing to another user's account.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("canvas_token, canvas_domain")
+    .eq("id", userId)
+    .single();
+
+  if (!profile?.canvas_token || !profile?.canvas_domain) {
+    return NextResponse.json(
+      { error: "Canvas not connected. Complete onboarding first." },
+      { status: 400 }
+    );
+  }
+
+  const token = profile.canvas_token;
+  const domain = profile.canvas_domain;
+
+  // ── 4. Fetch assignments from Canvas ─────────────────────────────────────
   let assignments: Awaited<ReturnType<typeof getCanvasAssignments>>;
   try {
     assignments = await getCanvasAssignments(token, domain);
@@ -55,6 +68,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ── 5. Write to DB using service role (bypasses RLS for upserts) ──────────
   const serviceClient = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,

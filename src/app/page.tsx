@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, Brain, Bell, LogOut } from "lucide-react";
+import { BookOpen, Brain, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,32 +28,21 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 7-day auto sign-out
-  if (user?.last_sign_in_at) {
-    const lastSignIn = new Date(user.last_sign_in_at);
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    if (lastSignIn < sevenDaysAgo) {
-      await supabase.auth.signOut({ scope: "local" });
-      redirect("/login");
+  // Authenticated users never see the landing page — redirect immediately.
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("onboarding_complete, canvas_token")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.onboarding_complete && profile?.canvas_token) {
+      redirect("/dashboard");
     }
+    redirect("/onboarding");
   }
 
-  async function handleSignOut() {
-    "use server";
-    const s = await createClient();
-    await s.auth.signOut({ scope: "local" });
-    redirect("/login");
-  }
-
-  const initial = user?.email?.charAt(0).toUpperCase() ?? null;
-  const memberSince = user
-    ? new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(new Date(user.created_at))
-    : null;
-
+  // Only unauthenticated users reach the JSX below.
   return (
     <main className="flex flex-col flex-1 bg-slate-900">
       {/* Sticky nav */}
@@ -64,50 +53,19 @@ export default async function HomePage() {
           </span>
 
           <div className="flex items-center gap-2">
-            {user ? (
-              /* Logged-in: avatar + dropdown */
-              <details className="relative group">
-                <summary className="list-none cursor-pointer select-none w-9 h-9 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-semibold text-sm hover:bg-indigo-500/30 transition-colors">
-                  {initial}
-                </summary>
-                <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-slate-800 border border-slate-700 shadow-2xl overflow-hidden z-50">
-                  <div className="px-4 py-3 border-b border-slate-700">
-                    <p className="text-white text-sm font-medium truncate">
-                      {user.email}
-                    </p>
-                    <p className="text-slate-400 text-xs mt-0.5">
-                      Member since {memberSince}
-                    </p>
-                  </div>
-                  <form action={handleSignOut}>
-                    <button
-                      type="submit"
-                      className="w-full flex items-center gap-2.5 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700/60 text-sm transition-colors bg-transparent"
-                    >
-                      <LogOut size={14} />
-                      Sign out
-                    </button>
-                  </form>
-                </div>
-              </details>
-            ) : (
-              /* Logged-out: Sign In + Sign Up */
-              <>
-                <Button
-                  asChild
-                  variant="ghost"
-                  className="text-slate-300 hover:text-white hover:bg-slate-800 text-sm h-9 px-4"
-                >
-                  <Link href="/login">Sign In</Link>
-                </Button>
-                <Button
-                  asChild
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm h-9 px-4"
-                >
-                  <Link href="/login">Sign Up</Link>
-                </Button>
-              </>
-            )}
+            <Button
+              asChild
+              variant="ghost"
+              className="text-slate-300 hover:text-white hover:bg-slate-800 text-sm h-9 px-4"
+            >
+              <Link href="/login">Sign In</Link>
+            </Button>
+            <Button
+              asChild
+              className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm h-9 px-4"
+            >
+              <Link href="/login">Sign Up</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -121,21 +79,12 @@ export default async function HomePage() {
           DuePulse connects to Canvas LMS, learns when you actually focus, and
           nudges you at exactly the right moment.
         </p>
-        {user ? (
-          <Button
-            asChild
-            className="bg-indigo-500 hover:bg-indigo-600 text-white mt-8 px-6 py-3 text-base h-auto w-full sm:w-auto"
-          >
-            <Link href="/dashboard">Go to Dashboard →</Link>
-          </Button>
-        ) : (
-          <Button
-            asChild
-            className="bg-indigo-500 hover:bg-indigo-600 text-white mt-8 px-6 py-3 text-base h-auto w-full sm:w-auto"
-          >
-            <Link href="/onboarding">Connect Your Canvas →</Link>
-          </Button>
-        )}
+        <Button
+          asChild
+          className="bg-indigo-500 hover:bg-indigo-600 text-white mt-8 px-6 py-3 text-base h-auto w-full sm:w-auto"
+        >
+          <Link href="/login">Connect Your Canvas →</Link>
+        </Button>
       </section>
 
       {/* Feature cards */}

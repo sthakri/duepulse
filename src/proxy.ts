@@ -52,15 +52,30 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 3. Redirect authenticated users on /onboarding if they already completed onboarding.
-  if (user && pathname === "/onboarding") {
+  // 3. Redirect authenticated users on /dashboard who haven't connected Canvas yet.
+  if (user && pathname.startsWith("/dashboard")) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("onboarding_complete")
+      .select("canvas_token, onboarding_complete")
       .eq("id", user.id)
       .single();
 
-    if (profile?.onboarding_complete) {
+    if (!profile?.canvas_token || !profile?.onboarding_complete) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // 4. Redirect authenticated users on /onboarding if they already completed onboarding.
+  if (user && pathname === "/onboarding") {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("onboarding_complete, canvas_token")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.onboarding_complete && profile?.canvas_token) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);

@@ -114,7 +114,6 @@ export default async function DashboardPage() {
       assignment_count,
     }),
   );
-  console.log("heatmap data rows:", heatmapData.length);
 
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const totalCount = (assignments ?? []).length;
@@ -173,11 +172,9 @@ export default async function DashboardPage() {
             {process.env.NODE_ENV === "development" && (
               <TestNotifButton userId={userId} />
             )}
-            <SyncNowButton
-              userId={userId}
-              token={profile?.canvas_token ?? ""}
-              domain={profile?.canvas_domain ?? ""}
-            />
+            {profile?.canvas_token && profile?.canvas_domain && (
+              <SyncNowButton userId={userId} />
+            )}
           </div>
         </div>
       </header>
