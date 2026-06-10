@@ -8,11 +8,11 @@ export default async function OnboardingPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <OnboardingWizard />
+      <OnboardingWizard userEmail={user.email ?? undefined} />
     </div>
   );
 }

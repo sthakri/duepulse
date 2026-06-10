@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, CheckCircle } from "lucide-react";
+import Link from "next/link";
+import { Eye, EyeOff, CheckCircle, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { env } from "@/lib/env";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,11 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return view as Uint8Array<ArrayBuffer>;
 }
 
-export default function OnboardingWizard() {
+export default function OnboardingWizard({
+  userEmail,
+}: {
+  userEmail?: string;
+}) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [domain, setDomain] = useState("");
@@ -30,6 +35,11 @@ export default function OnboardingWizard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [courseCount, setCourseCount] = useState(0);
+
+  async function handleSignOut() {
+    await createClient().auth.signOut({ scope: "global" });
+    router.push("/");
+  }
 
   async function handleTestConnection() {
     setLoading(true);
@@ -148,6 +158,29 @@ export default function OnboardingWizard() {
 
   return (
     <div className="w-full max-w-md bg-slate-800 rounded-xl p-6 sm:p-8">
+      <div className="flex items-center justify-between mb-6">
+        <Link
+          href="/"
+          className="font-bold text-lg bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
+        >
+          DuePulse
+        </Link>
+        <div className="flex items-center gap-3">
+          {userEmail && (
+            <span className="text-slate-400 text-sm hidden sm:block">
+              {userEmail}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="flex items-center gap-1.5 text-slate-400 hover:text-red-400 text-sm transition-colors bg-transparent"
+          >
+            <LogOut size={14} />
+            Sign out
+          </button>
+        </div>
+      </div>
       <div className="flex gap-2 justify-center mb-8">
         {[1, 2, 3, 4].map((n) => (
           <div
@@ -237,12 +270,21 @@ export default function OnboardingWizard() {
               Found {courseCount} course{courseCount !== 1 ? "s" : ""}
             </p>
           </div>
-          <Button
-            onClick={() => setStep(3)}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full min-h-11"
-          >
-            Continue →
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setStep(1)}
+              variant="ghost"
+              className="text-slate-300 hover:text-white hover:bg-slate-700 min-h-11 flex-1"
+            >
+              ← Back
+            </Button>
+            <Button
+              onClick={() => setStep(3)}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white min-h-11 flex-[2]"
+            >
+              Continue →
+            </Button>
+          </div>
         </div>
       )}
 
@@ -262,11 +304,18 @@ export default function OnboardingWizard() {
             Enable Nudges
           </Button>
 
-          <div className="text-center">
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setStep(2)}
+              variant="ghost"
+              className="text-slate-300 hover:text-white hover:bg-slate-700 min-h-11 flex-1"
+            >
+              ← Back
+            </Button>
             <button
               type="button"
               onClick={() => setStep(4)}
-              className="text-slate-400 text-base hover:text-slate-300 min-h-11 flex items-center justify-center w-full"
+              className="text-slate-400 text-base hover:text-slate-300 min-h-11 flex-[2] bg-transparent"
             >
               Enable later in Settings
             </button>
@@ -284,12 +333,21 @@ export default function OnboardingWizard() {
               Your Canvas assignments are syncing in the background.
             </p>
           </div>
-          <Button
-            onClick={handleGoToDashboard}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white w-full min-h-11"
-          >
-            Go to Dashboard →
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setStep(3)}
+              variant="ghost"
+              className="text-slate-300 hover:text-white hover:bg-slate-700 min-h-11 flex-1"
+            >
+              ← Back
+            </Button>
+            <Button
+              onClick={handleGoToDashboard}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white min-h-11 flex-[2]"
+            >
+              Go to Dashboard →
+            </Button>
+          </div>
         </div>
       )}
     </div>

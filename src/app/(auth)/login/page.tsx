@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -31,10 +32,12 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error: authError } =
+    const result =
       mode === "signin"
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password });
+
+    const { error: authError } = result;
 
     setLoading(false);
 
@@ -44,8 +47,12 @@ export default function LoginPage() {
     }
 
     if (mode === "signup") {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      router.push("/onboarding");
+      const { data } = result;
+      if (data?.session) {
+        router.push("/onboarding");
+      } else {
+        setError("Check your email for a confirmation link before signing in.");
+      }
     } else {
       // Check onboarding state before redirecting — users who signed up but
       // never completed onboarding must be sent back to /onboarding, not /dashboard.
@@ -70,7 +77,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+      <Link
+        href="/"
+        className="font-bold text-lg bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent mb-6 hover:opacity-80 transition-opacity"
+      >
+        DuePulse
+      </Link>
       <Card className="w-full max-w-sm bg-slate-800 border-slate-700 text-white">
         <CardHeader>
           <CardTitle className="text-white text-xl font-semibold">
@@ -146,6 +159,12 @@ export default function LoginPage() {
           </CardFooter>
         </form>
       </Card>
+      <Link
+        href="/"
+        className="mt-6 text-slate-400 hover:text-slate-300 text-sm transition-colors"
+      >
+        ← Back to homepage
+      </Link>
     </div>
   );
 }

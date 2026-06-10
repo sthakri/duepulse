@@ -38,47 +38,74 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // 1. Redirect authenticated users away from the login page.
-  if (user && pathname === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
-
-  // 2. Redirect unauthenticated users trying to access protected routes.
+  // 1. Unauthenticated users on protected routes → homepage.
   if (!user && (pathname.startsWith("/dashboard") || pathname === "/onboarding")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
-  // 3. Redirect authenticated users on /dashboard who haven't connected Canvas yet.
-  if (user && pathname.startsWith("/dashboard")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("canvas_token, onboarding_complete")
-      .eq("id", user.id)
-      .single();
+  if (user) {
+    // 2. Authenticated user on /login → onboarded → dashboard, else → onboarding.
+    if (pathname === "/login") {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("canvas_token, onboarding_complete")
+        .eq("id", user.id)
+        .single();
 
-    if (!profile?.canvas_token || !profile?.onboarding_complete) {
       const url = request.nextUrl.clone();
-      url.pathname = "/onboarding";
+      url.pathname =
+        profile?.canvas_token && profile?.onboarding_complete
+          ? "/dashboard"
+          : "/onboarding";
       return NextResponse.redirect(url);
     }
-  }
 
-  // 4. Redirect authenticated users on /onboarding if they already completed onboarding.
-  if (user && pathname === "/onboarding") {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("onboarding_complete, canvas_token")
-      .eq("id", user.id)
-      .single();
+    // 3. Authenticated user on / (homepage) → onboarded → dashboard, else → onboarding.
+    if (pathname === "/") {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("canvas_token, onboarding_complete")
+        .eq("id", user.id)
+        .single();
 
-    if (profile?.onboarding_complete && profile?.canvas_token) {
       const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
+      url.pathname =
+        profile?.canvas_token && profile?.onboarding_complete
+          ? "/dashboard"
+          : "/onboarding";
       return NextResponse.redirect(url);
+    }
+
+    // 4. Authenticated on /dashboard but onboarding incomplete → redirect to /onboarding.
+    if (pathname.startsWith("/dashboard")) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("canvas_token, onboarding_complete")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.canvas_token || !profile?.onboarding_complete) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/onboarding";
+        return NextResponse.redirect(url);
+      }
+    }
+
+    // 5. Authenticated on /onboarding but already done → redirect to /dashboard.
+    if (pathname === "/onboarding") {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_complete, canvas_token")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.onboarding_complete && profile?.canvas_token) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/dashboard";
+        return NextResponse.redirect(url);
+      }
     }
   }
 

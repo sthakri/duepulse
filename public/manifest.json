@@ -1,7 +1,7 @@
 {
   "name": "DuePulse",
   "short_name": "DuePulse",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#6366f1",

@@ -22,8 +22,8 @@ export default async function DashboardPage() {
   async function handleSignOut() {
     "use server";
     const s = await createClient();
-    await s.auth.signOut({ scope: "local" });
-    redirect("/login");
+    await s.auth.signOut({ scope: "global" });
+    redirect("/");
   }
 
   const userId = user.id;
