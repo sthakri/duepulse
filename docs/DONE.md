@@ -15,5 +15,8 @@
 - [x] Session 11: Trigger.dev nudge engine + OpenAI
 - [x] Session 11B: PWA config
 - [x] Session 12: Mobile responsive pass (375px)
+- [x] Session 13: Deployment prep (vercel.json, proxy.ts migration, clean build, DEPLOYMENT.md)
+
+- [x] Session 14: Stress Prediction + Pile-Up Detection
 
       (Move entries here from PROGRESS.md as each session finishes)

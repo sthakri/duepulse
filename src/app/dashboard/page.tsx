@@ -2,11 +2,14 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AssignmentCard from "@/components/AssignmentCard";
 import SyncNowButton from "@/components/SyncNowButton";
+import StressAlert from "@/components/StressAlert";
 import WorkloadHeatmap from "@/components/WorkloadHeatmap";
 import ProductiveWindowsChart from "@/components/ProductiveWindowsChart";
+import BehavioralInsightCard from "@/components/BehavioralInsightCard";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import TestNotifButton from "@/components/TestNotifButton";
 import { LogOut } from "lucide-react";
+import { analyzeProductiveWindows } from "@/lib/ml";
 
 type CourseJoin = { name: string; color: string } | null;
 
@@ -93,6 +96,11 @@ export default async function DashboardPage() {
     .from("productive_windows")
     .select("hour_of_day, day_of_week, score")
     .eq("user_id", userId);
+
+  const mlInsights = analyzeProductiveWindows(productiveWindows ?? []);
+  const totalDaysTracked = Math.round(
+    (productiveWindows ?? []).reduce((sum, r) => sum + r.score, 0) * 100 / 3,
+  );
 
   // Build heatmap from assignments using local dates to avoid UTC date shift.
   // (e.g. an 11:59 PM CDT deadline stored as 04:59 UTC would fall on the wrong
@@ -182,6 +190,7 @@ export default async function DashboardPage() {
       <main className="max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="order-1 lg:order-0 lg:col-span-2 lg:col-start-1 lg:row-start-1 min-h-0 self-start">
+            <StressAlert userId={userId} />
             <WorkloadHeatmap data={heatmapData} userTz={userTz} />
           </div>
 
@@ -215,6 +224,13 @@ export default async function DashboardPage() {
             <ProductiveWindowsChart data={productiveWindows ?? []} />
           </div>
 
+          <div className="order-5 lg:hidden">
+            <BehavioralInsightCard
+              insights={mlInsights}
+              totalDaysTracked={totalDaysTracked}
+            />
+          </div>
+
           <div className="hidden lg:block lg:self-start lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:row-span-2">
             <div className="rounded-xl bg-slate-800 p-6 mb-6">
               <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-6">
@@ -244,6 +260,12 @@ export default async function DashboardPage() {
               </div>
             </div>
             <ProductiveWindowsChart data={productiveWindows ?? []} />
+            <div className="mt-6">
+              <BehavioralInsightCard
+                insights={mlInsights}
+                totalDaysTracked={totalDaysTracked}
+              />
+            </div>
           </div>
 
           <div className="order-3 lg:order-0 lg:col-span-2 lg:col-start-1 lg:row-start-2 flex flex-col gap-3">
