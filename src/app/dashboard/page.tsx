@@ -9,7 +9,7 @@ import BehavioralInsightCard from "@/components/BehavioralInsightCard";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import TestNotifButton from "@/components/TestNotifButton";
 import Link from "next/link";
-import { LogOut, Settings } from "lucide-react";
+import { LogOut, RefreshCw, Settings } from "lucide-react";
 import { analyzeProductiveWindows } from "@/lib/ml";
 import { getLocalDate, getLocalHour, getLocalDay } from "@/lib/time";
 
@@ -166,6 +166,13 @@ export default async function DashboardPage() {
             {profile?.canvas_token && profile?.canvas_domain && (
               <SyncNowButton userId={userId} />
             )}
+            <button
+              onClick={() => window.location.reload()}
+              className="text-slate-400 hover:text-white transition-colors bg-transparent"
+              title="Refresh page"
+            >
+              <RefreshCw size={16} />
+            </button>
           </div>
         </div>
       </header>

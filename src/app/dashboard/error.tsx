@@ -23,6 +23,9 @@ export default function DashboardError({
           Couldn&apos;t load your dashboard. This usually happens after a fresh
           sign-in — try reloading.
         </p>
+        <p className="text-red-400 text-xs mb-6 font-mono bg-slate-800 rounded-lg p-3 text-left break-all max-h-32 overflow-y-auto">
+          {error.message}
+        </p>
         <button
           onClick={reset}
           className="rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 text-base font-medium transition-colors"
