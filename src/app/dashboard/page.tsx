@@ -9,7 +9,8 @@ import BehavioralInsightCard from "@/components/BehavioralInsightCard";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import TestNotifButton from "@/components/TestNotifButton";
 import Link from "next/link";
-import { LogOut, RefreshCw, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
+import RefreshButton from "@/components/RefreshButton";
 import { analyzeProductiveWindows } from "@/lib/ml";
 import { getLocalDate, getLocalHour, getLocalDay } from "@/lib/time";
 
@@ -42,7 +43,9 @@ export default async function DashboardPage() {
       .order("due_at", { ascending: true, nullsFirst: false }),
     supabase
       .from("profiles")
-      .select("canvas_token, canvas_domain, updated_at, timezone, quiet_hours_start, quiet_hours_end, nudge_frequency, stress_threshold, nudge_paused_until")
+      .select(
+        "canvas_token, canvas_domain, updated_at, timezone, quiet_hours_start, quiet_hours_end, nudge_frequency, stress_threshold, nudge_paused_until",
+      )
       .eq("id", userId)
       .single(),
   ]);
@@ -80,7 +83,7 @@ export default async function DashboardPage() {
 
   const mlInsights = analyzeProductiveWindows(productiveWindows ?? [], userTz);
   const totalDaysTracked = Math.round(
-    (productiveWindows ?? []).reduce((sum, r) => sum + r.score, 0) * 100 / 3,
+    ((productiveWindows ?? []).reduce((sum, r) => sum + r.score, 0) * 100) / 3,
   );
 
   const heatmapCounts = (assignments ?? []).reduce<Record<string, number>>(
@@ -166,13 +169,7 @@ export default async function DashboardPage() {
             {profile?.canvas_token && profile?.canvas_domain && (
               <SyncNowButton userId={userId} />
             )}
-            <button
-              onClick={() => window.location.reload()}
-              className="text-slate-400 hover:text-white transition-colors bg-transparent"
-              title="Refresh page"
-            >
-              <RefreshCw size={16} />
-            </button>
+            <RefreshButton />
           </div>
         </div>
       </header>
@@ -211,7 +208,10 @@ export default async function DashboardPage() {
           </div>
 
           <div className="order-4 lg:hidden">
-            <ProductiveWindowsChart data={productiveWindows ?? []} userTz={userTz} />
+            <ProductiveWindowsChart
+              data={productiveWindows ?? []}
+              userTz={userTz}
+            />
           </div>
 
           <div className="order-5 lg:hidden">
@@ -249,7 +249,10 @@ export default async function DashboardPage() {
                 </div>
               </div>
             </div>
-            <ProductiveWindowsChart data={productiveWindows ?? []} userTz={userTz} />
+            <ProductiveWindowsChart
+              data={productiveWindows ?? []}
+              userTz={userTz}
+            />
             <div className="mt-6">
               <BehavioralInsightCard
                 insights={mlInsights}

@@ -19,5 +19,6 @@
 
 - [x] Session 14: Stress Prediction + Pile-Up Detection
 - [x] Session 15: Behavioral ML Visualization
+- [x] Session 16: Quiet Hours + Nudge Settings
 
       (Move entries here from PROGRESS.md as each session finishes)
