@@ -3,6 +3,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
+import { getLocalDate, getDayRange } from "@/lib/time";
 
 const ratelimit = new Ratelimit({
   redis: new Redis({
@@ -11,15 +12,6 @@ const ratelimit = new Ratelimit({
   }),
   limiter: Ratelimit.slidingWindow(20, "1 h"),
 });
-
-function formatLocalDate(date: Date, tz: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(date);
-}
-
-function toDateOnly(localDateStr: string): Date {
-  const [y, m, d] = localDateStr.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -39,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("timezone")
+    .select("timezone, stress_threshold")
     .eq("id", user.id)
     .single();
 
@@ -59,8 +51,9 @@ export async function GET(req: NextRequest) {
     .order("due_at", { ascending: true });
 
   const totalUpcoming = assignments?.length ?? 0;
+  const userThreshold = profile?.stress_threshold ?? 5;
 
-  if (!assignments || totalUpcoming === 0) {
+  if (!assignments || totalUpcoming < userThreshold) {
     return NextResponse.json({
       stressLevel: "low",
       pileUpDetected: false,
@@ -71,25 +64,17 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const todayStr = formatLocalDate(now, userTz);
-  const today = toDateOnly(todayStr);
-
+  const dateKeys = getDayRange(now, userTz, 14);
   const dateCounts = new Map<string, number>();
-
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
-    const key = formatLocalDate(d, "UTC");
-    dateCounts.set(key, 0);
-  }
+  for (const k of dateKeys) dateCounts.set(k, 0);
 
   for (const a of assignments) {
     if (!a.due_at) continue;
-    const localDate = formatLocalDate(new Date(a.due_at), userTz);
+    const localDate = getLocalDate(new Date(a.due_at), userTz);
     dateCounts.set(localDate, (dateCounts.get(localDate) ?? 0) + 1);
   }
 
-  const sortedDates = Array.from(dateCounts.keys()).sort();
-  const dateArray = sortedDates.map((d) => ({ date: d, count: dateCounts.get(d)! }));
+  const dateArray = dateKeys.map((d) => ({ date: d, count: dateCounts.get(d)! }));
 
   let stressLevel: "low" | "medium" | "high" = "low";
   let pileUpDetected = false;
@@ -135,9 +120,9 @@ export async function GET(req: NextRequest) {
   let peakWindowEnd: string | null = null;
 
   if (peakStartIdx >= 0) {
-    peakWindowStart = sortedDates[peakStartIdx];
-    const endIdx = Math.min(peakStartIdx + 2, sortedDates.length - 1);
-    peakWindowEnd = sortedDates[endIdx];
+    peakWindowStart = dateKeys[peakStartIdx];
+    const endIdx = Math.min(peakStartIdx + 2, dateKeys.length - 1);
+    peakWindowEnd = dateKeys[endIdx];
   }
 
   const result: {

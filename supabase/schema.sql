@@ -1,6 +1,15 @@
 -- ============================================================
 -- DuePulse — Full Schema
 -- ============================================================
+--
+-- Migration: Add notification preferences (Session 16)
+-- Run in Supabase SQL Editor:
+--   ALTER TABLE public.profiles
+--     ADD COLUMN quiet_hours_start smallint check (quiet_hours_start between 0 and 23),
+--     ADD COLUMN quiet_hours_end smallint check (quiet_hours_end between 0 and 23),
+--     ADD COLUMN nudge_frequency text not null default 'normal' check (nudge_frequency in ('aggressive','normal','minimal')),
+--     ADD COLUMN stress_threshold smallint not null default 5 check (stress_threshold between 1 and 20),
+--     ADD COLUMN nudge_paused_until timestamptz;
 
 -- Enable pgcrypto for gen_random_uuid()
 create extension if not exists "pgcrypto";
@@ -14,8 +23,13 @@ create table if not exists public.profiles (
   canvas_token  text,
   timezone      text default 'America/Chicago',
   onboarding_complete boolean not null default false,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now(),
+  quiet_hours_start   smallint check (quiet_hours_start between 0 and 23),
+  quiet_hours_end     smallint check (quiet_hours_end between 0 and 23),
+  nudge_frequency     text not null default 'normal' check (nudge_frequency in ('aggressive','normal','minimal')),
+  stress_threshold    smallint not null default 5 check (stress_threshold between 1 and 20),
+  nudge_paused_until  timestamptz
 );
 
 alter table public.profiles enable row level security;

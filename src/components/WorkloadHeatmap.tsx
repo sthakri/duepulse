@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import * as d3 from "d3";
+import { getLocalDate, getLocalDay } from "@/lib/time";
 
 interface Props {
   data: Array<{ due_at: string; assignment_count: number }>;
@@ -29,10 +30,6 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
-
-function localDateStr(d: Date): string {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-}
 
 function fmtShort(d: Date): string {
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
@@ -71,28 +68,26 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
       .scaleSequential(d3.interpolateRgb("#1e3a5f", "#ef4444"))
       .domain([0, maxDomain]);
 
-    // Derive "today" in the user's local timezone (works correctly even on the UTC server).
     const now = new Date();
-    const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: userTz }).format(now);
+    const todayStr = getLocalDate(now, userTz);
+    const todayDow = getLocalDay(now, userTz);
 
-    // Parse the local YYYY-MM-DD string as a UTC midnight date to get JS day-of-week math right.
-    const today = new Date(`${todayStr}T00:00:00Z`);
-    const dow = today.getUTCDay();
-    const monday = new Date(today);
-    monday.setUTCDate(today.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+    const dowOff = todayDow === 0 ? -6 : 1 - todayDow;
+    const monday = new Date(now.getTime() + dowOff * 86_400_000);
 
     const days: DayEntry[] = Array.from({ length: 42 }, (_, i) => {
       const col = Math.floor(i / 7);
       const row = i % 7;
-      const d = new Date(monday);
-      d.setUTCDate(monday.getUTCDate() + col * 7 + row);
-      return { date: d, dateStr: localDateStr(d), col, row };
+      const dt = new Date(monday.getTime() + (col * 7 + row) * 86_400_000);
+      const dateStr = getLocalDate(dt, userTz);
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return { date: new Date(Date.UTC(y, m - 1, d)), dateStr, col, row };
     });
 
     const weekStarts: Date[] = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(monday);
-      d.setUTCDate(monday.getUTCDate() + i * 7);
-      return d;
+      const dt = new Date(monday.getTime() + i * 7 * 86_400_000);
+      const [y, m, d] = getLocalDate(dt, userTz).split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d));
     });
 
     function redraw() {

@@ -1,16 +1,10 @@
 "use client";
 
+import { formatLocalHour } from "@/lib/time";
+
 interface Props {
   data: Array<{ hour_of_day: number; day_of_week: number; score: number }>;
-}
-
-function formatHour(h: number): string {
-  // Use a fixed UTC date at hour h to format the hour consistently across environments.
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    hour12: true,
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(2000, 0, 1, h, 0, 0)));
+  userTz?: string;
 }
 
 function hourEmoji(h: number): string {
@@ -21,7 +15,7 @@ function hourEmoji(h: number): string {
   return "🌙";
 }
 
-export default function ProductiveWindowsChart({ data }: Props) {
+export default function ProductiveWindowsChart({ data, userTz }: Props) {
   if (data.length < 5) {
     return (
       <div className="rounded-xl bg-slate-800 p-4">
@@ -66,7 +60,7 @@ export default function ProductiveWindowsChart({ data }: Props) {
         <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 text-center">
           <div className="text-2xl mb-1">{hourEmoji(topHour)}</div>
           <div className="text-white font-bold text-xl">
-            {formatHour(topHour)}
+            {formatLocalHour(topHour, userTz)}
           </div>
           <div className="text-indigo-400 text-xs mt-1">
             Your peak focus hour
@@ -82,7 +76,7 @@ export default function ProductiveWindowsChart({ data }: Props) {
                   key={h}
                   className="bg-slate-700 text-slate-300 text-xs rounded-md px-2 py-1"
                 >
-                  {formatHour(h)}
+                  {formatLocalHour(h, userTz)}
                 </span>
               ))}
             </div>

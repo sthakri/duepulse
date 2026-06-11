@@ -163,7 +163,12 @@ export type Database = {
           canvas_token: string | null
           created_at: string
           id: string
+          nudge_frequency: string
+          nudge_paused_until: string | null
           onboarding_complete: boolean
+          quiet_hours_end: number | null
+          quiet_hours_start: number | null
+          stress_threshold: number
           timezone: string | null
           updated_at: string
         }
@@ -172,7 +177,12 @@ export type Database = {
           canvas_token?: string | null
           created_at?: string
           id: string
+          nudge_frequency?: string
+          nudge_paused_until?: string | null
           onboarding_complete?: boolean
+          quiet_hours_end?: number | null
+          quiet_hours_start?: number | null
+          stress_threshold?: number
           timezone?: string | null
           updated_at?: string
         }
@@ -181,7 +191,12 @@ export type Database = {
           canvas_token?: string | null
           created_at?: string
           id?: string
+          nudge_frequency?: string
+          nudge_paused_until?: string | null
           onboarding_complete?: boolean
+          quiet_hours_end?: number | null
+          quiet_hours_start?: number | null
+          stress_threshold?: number
           timezone?: string | null
           updated_at?: string
         }

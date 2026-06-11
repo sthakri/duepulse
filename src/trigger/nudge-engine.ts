@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
 import { generateNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
+import { getLocalHour, getLocalDay } from "@/lib/time"
 import type { Database } from "@/database.types"
 import webpush from "web-push"
 import ws from "ws"
@@ -52,9 +53,16 @@ function buildDeadlineMessage(
   return `${assignments[0].title}, ${assignments[1].title}, and ${rest} more due in ${label}!`
 }
 
-// Maps en-US short weekday names → JS day-of-week numbers (0 = Sun … 6 = Sat)
-const DAY_NAMES: Record<string, number> = {
-  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+
+function isInQuietHours(
+  start: number | null,
+  end: number | null,
+  localHour: number,
+): boolean {
+  if (start === null || end === null) return false
+  if (start === end) return localHour === start
+  if (start < end) return localHour >= start && localHour < end
+  return localHour >= start || localHour < end
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,12 +116,17 @@ export const nudgeEngine = schedules.task({
     // Fire only during the user's local productive day+hour, at most once per 20h.
 
     const uniqueUserIds = [...new Set(allWindows.map((w) => w.user_id))]
+    const allSubUserIds = allSubs.map((s) => s.user_id)
+    const profileUserIds = [...new Set([...uniqueUserIds, ...allSubUserIds])]
 
     const { data: userProfiles } = await serviceClient
       .from("profiles")
-      .select("id, timezone")
-      .in("id", uniqueUserIds)
+      .select("id, timezone, quiet_hours_start, quiet_hours_end, nudge_frequency, nudge_paused_until")
+      .in("id", profileUserIds)
 
+    const profileByUser = new Map(
+      (userProfiles ?? []).map((p) => [p.id, p]),
+    )
     const tzByUser = new Map(
       (userProfiles ?? []).map((p) => [p.id, p.timezone ?? "America/Chicago"]),
     )
@@ -127,15 +140,8 @@ export const nudgeEngine = schedules.task({
 
     const productiveUserIds = uniqueUserIds.filter((uid) => {
       const tz = tzByUser.get(uid) ?? "America/Chicago"
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: tz,
-        hour: "numeric",
-        hourCycle: "h23",
-        weekday: "short",
-      }).formatToParts(now)
-      const localHour = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10)
-      const weekdayStr = parts.find((p) => p.type === "weekday")?.value ?? "Sun"
-      const localDay = DAY_NAMES[weekdayStr] ?? 0
+      const localHour = getLocalHour(now, tz)
+      const localDay = getLocalDay(now, tz)
       const key = `${localDay}:${localHour}`
       const matches = windowsByUser.get(uid)?.has(key) ?? false
       console.log(`[nudge-engine] Section A uid=${uid} tz=${tz} day=${localDay} hour=${localHour} key=${key} matches=${matches}`)
@@ -144,7 +150,6 @@ export const nudgeEngine = schedules.task({
 
     // Extended to 14 days so assignments due next week are always found.
     const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-    const twentyHoursAgo = new Date(now.getTime() - 20 * 60 * 60 * 1000)
 
     console.log(`[nudge-engine] Section A: ${productiveUserIds.length} user(s) in productive window`)
     let productiveWindowSent = 0
@@ -157,13 +162,42 @@ export const nudgeEngine = schedules.task({
           return
         }
 
-        // Dedup: skip if a productive_window nudge was already sent in the last 20 hours.
+        const pf = profileByUser.get(userId)
+        if (!pf) {
+          console.log(`[nudge-engine] Section A uid=${userId} no profile — skipping`)
+          return
+        }
+
+        // Quiet hours check
+        const localHour = getLocalHour(now, tzByUser.get(userId) ?? "America/Chicago")
+
+        if (isInQuietHours(pf.quiet_hours_start, pf.quiet_hours_end, localHour)) {
+          console.log(`[nudge-engine] Section A uid=${userId} in quiet hours — skipping`)
+          return
+        }
+
+        // Nudge pause check
+        if (pf.nudge_paused_until && new Date(pf.nudge_paused_until) > now) {
+          console.log(`[nudge-engine] Section A uid=${userId} nudges paused until ${pf.nudge_paused_until} — skipping`)
+          return
+        }
+
+        // Frequency check - minimal skips productive window nudges entirely
+        if (pf.nudge_frequency === "minimal") {
+          console.log(`[nudge-engine] Section A uid=${userId} frequency=minimal — skipping`)
+          return
+        }
+
+        // Dedup window: 4h for aggressive, 20h for normal
+        const dedupWindowMs = pf.nudge_frequency === "aggressive" ? 4 * 60 * 60 * 1000 : 20 * 60 * 60 * 1000
+        const dedupSince = new Date(now.getTime() - dedupWindowMs)
+
         const { data: recentLog } = await serviceClient
           .from("nudge_logs")
           .select("id")
           .eq("user_id", userId)
           .eq("nudge_type", "productive_window")
-          .gte("sent_at", twentyHoursAgo.toISOString())
+          .gte("sent_at", dedupSince.toISOString())
           .maybeSingle()
 
         if (recentLog) {
@@ -255,6 +289,25 @@ export const nudgeEngine = schedules.task({
       allSubs.map(async (sub) => {
         const userId = sub.user_id
 
+        const pf = profileByUser.get(userId)
+
+        // Quiet hours check (skip if profile is missing)
+        if (pf) {
+          const localHour = getLocalHour(now, tzByUser.get(userId) ?? "America/Chicago")
+
+          if (isInQuietHours(pf.quiet_hours_start, pf.quiet_hours_end, localHour)) {
+            console.log(`[nudge-engine] Section B uid=${userId} in quiet hours — skipping`)
+            return
+          }
+
+          if (pf.nudge_paused_until && new Date(pf.nudge_paused_until) > now) {
+            console.log(`[nudge-engine] Section B uid=${userId} nudges paused until ${pf.nudge_paused_until} — skipping`)
+            return
+          }
+        } else {
+          console.log(`[nudge-engine] Section B uid=${userId} no profile — allowing nudges (default behavior)`)
+        }
+
         // Fetch all incomplete assignments due within the widest threshold window.
         const { data: upcomingAssignments } = await serviceClient
           .from("assignments")
@@ -282,6 +335,9 @@ export const nudgeEngine = schedules.task({
         )
 
         for (const threshold of DEADLINE_THRESHOLDS) {
+          // In minimal mode, only send 1h deadline nudges.
+          if (pf?.nudge_frequency === "minimal" && threshold.type !== "1h") continue
+
           // Filter assignments hitting this threshold window.
           const inWindow = upcomingAssignments.filter((a) => {
             if (!a.due_at) return false

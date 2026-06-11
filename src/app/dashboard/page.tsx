@@ -8,8 +8,10 @@ import ProductiveWindowsChart from "@/components/ProductiveWindowsChart";
 import BehavioralInsightCard from "@/components/BehavioralInsightCard";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import TestNotifButton from "@/components/TestNotifButton";
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, Settings } from "lucide-react";
 import { analyzeProductiveWindows } from "@/lib/ml";
+import { getLocalDate, getLocalHour, getLocalDay } from "@/lib/time";
 
 type CourseJoin = { name: string; color: string } | null;
 
@@ -40,36 +42,15 @@ export default async function DashboardPage() {
       .order("due_at", { ascending: true, nullsFirst: false }),
     supabase
       .from("profiles")
-      .select("canvas_token, canvas_domain, updated_at, timezone")
+      .select("canvas_token, canvas_domain, updated_at, timezone, quiet_hours_start, quiet_hours_end, nudge_frequency, stress_threshold, nudge_paused_until")
       .eq("id", userId)
       .single(),
   ]);
 
   const now = new Date();
   const userTz = profile?.timezone ?? "America/Chicago";
-
-  // Compute local hour and day-of-week in the user's timezone (server runs UTC).
-  const localParts = new Intl.DateTimeFormat("en-US", {
-    timeZone: userTz,
-    hour: "numeric",
-    hourCycle: "h23",
-    weekday: "short",
-  }).formatToParts(now);
-  const hourOfDay = parseInt(
-    localParts.find((p) => p.type === "hour")?.value ?? "0",
-    10,
-  );
-  const DOW_MAP: Record<string, number> = {
-    Sun: 0,
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-  };
-  const dayOfWeek =
-    DOW_MAP[localParts.find((p) => p.type === "weekday")?.value ?? "Sun"] ?? 0;
+  const hourOfDay = getLocalHour(now, userTz);
+  const dayOfWeek = getLocalDay(now, userTz);
 
   const { data: pwRow } = await supabase
     .from("productive_windows")
@@ -97,20 +78,15 @@ export default async function DashboardPage() {
     .select("hour_of_day, day_of_week, score")
     .eq("user_id", userId);
 
-  const mlInsights = analyzeProductiveWindows(productiveWindows ?? []);
+  const mlInsights = analyzeProductiveWindows(productiveWindows ?? [], userTz);
   const totalDaysTracked = Math.round(
     (productiveWindows ?? []).reduce((sum, r) => sum + r.score, 0) * 100 / 3,
   );
 
-  // Build heatmap from assignments using local dates to avoid UTC date shift.
-  // (e.g. an 11:59 PM CDT deadline stored as 04:59 UTC would fall on the wrong
-  // day if we sliced the UTC ISO string or used a server-side SQL date cast.)
   const heatmapCounts = (assignments ?? []).reduce<Record<string, number>>(
     (acc, a) => {
       if (!a.due_at) return acc;
-      const localDate = new Intl.DateTimeFormat("en-CA", {
-        timeZone: userTz,
-      }).format(new Date(a.due_at));
+      const localDate = getLocalDate(new Date(a.due_at), userTz);
       acc[localDate] = (acc[localDate] ?? 0) + 1;
       return acc;
     },
@@ -165,6 +141,13 @@ export default async function DashboardPage() {
                     Member since {memberSince}
                   </p>
                 </div>
+                <Link
+                  href="/dashboard/settings"
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700/60 text-sm transition-colors"
+                >
+                  <Settings size={14} />
+                  Settings
+                </Link>
                 <form action={handleSignOut}>
                   <button
                     type="submit"
@@ -221,7 +204,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="order-4 lg:hidden">
-            <ProductiveWindowsChart data={productiveWindows ?? []} />
+            <ProductiveWindowsChart data={productiveWindows ?? []} userTz={userTz} />
           </div>
 
           <div className="order-5 lg:hidden">
@@ -259,7 +242,7 @@ export default async function DashboardPage() {
                 </div>
               </div>
             </div>
-            <ProductiveWindowsChart data={productiveWindows ?? []} />
+            <ProductiveWindowsChart data={productiveWindows ?? []} userTz={userTz} />
             <div className="mt-6">
               <BehavioralInsightCard
                 insights={mlInsights}

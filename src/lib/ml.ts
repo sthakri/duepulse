@@ -26,6 +26,8 @@ export interface MLInsights {
   bestDayLabels: string[];
 }
 
+import { formatLocalHour } from "@/lib/time";
+
 const PERSONAS: FocusPersona[] = [
   { id: "earlyBird", label: "Early Bird", emoji: "🌅", description: "Peak focus before the world wakes up" },
   { id: "morningWorker", label: "Morning Worker", emoji: "☀️", description: "Most productive in the late morning" },
@@ -44,16 +46,13 @@ function personaBucket(hour: number): FocusPersona["id"] {
   return "nightOwl";
 }
 
-export function formatHour(h: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    hour12: true,
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(2000, 0, 1, h, 0, 0)));
+export function formatHour(h: number, tz?: string): string {
+  return formatLocalHour(h, tz);
 }
 
 export function detectProductiveWindows(
   rows: Array<{ hour_of_day: number; day_of_week: number; score: number }>,
+  userTz?: string,
 ): DetectedPattern[] {
   const groups = new Map<number, number[]>();
   for (const r of rows) {
@@ -82,7 +81,7 @@ export function detectProductiveWindows(
 
     all.push({
       hour,
-      label: formatHour(hour),
+      label: formatHour(hour, userTz),
       avgScore,
       consistencyDays,
       confidence,
@@ -105,7 +104,7 @@ function derivePersona(patterns: DetectedPattern[]): FocusPersona | null {
   return PERSONAS.find((p) => p.id === id) ?? null;
 }
 
-function findFocusBlock(patterns: DetectedPattern[]): FocusBlock | null {
+function findFocusBlock(patterns: DetectedPattern[], userTz?: string): FocusBlock | null {
   const significant = patterns.filter((p) => p.confidence !== "low");
   if (significant.length === 0) return null;
 
@@ -138,7 +137,7 @@ function findFocusBlock(patterns: DetectedPattern[]): FocusBlock | null {
   return {
     startHour: bestStart,
     endHour: bestEnd,
-    label: `${formatHour(bestStart)} – ${formatHour(bestEnd)}`,
+    label: `${formatHour(bestStart, userTz)} – ${formatHour(bestEnd, userTz)}`,
   };
 }
 
@@ -158,10 +157,11 @@ function findBestDays(
 
 export function analyzeProductiveWindows(
   rows: Array<{ hour_of_day: number; day_of_week: number; score: number }>,
+  userTz?: string,
 ): MLInsights {
-  const patterns = detectProductiveWindows(rows);
+  const patterns = detectProductiveWindows(rows, userTz);
   const persona = derivePersona(patterns);
-  const topFocusBlock = findFocusBlock(patterns);
+  const topFocusBlock = findFocusBlock(patterns, userTz);
   const bestDayLabels = findBestDays(rows);
 
   return { patterns, persona, topFocusBlock, bestDayLabels };

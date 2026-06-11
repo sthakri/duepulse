@@ -18,5 +18,6 @@
 - [x] Session 13: Deployment prep (vercel.json, proxy.ts migration, clean build, DEPLOYMENT.md)
 
 - [x] Session 14: Stress Prediction + Pile-Up Detection
+- [x] Session 15: Behavioral ML Visualization
 
       (Move entries here from PROGRESS.md as each session finishes)
