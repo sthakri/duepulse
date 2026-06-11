@@ -39,11 +39,10 @@ const FREQUENCIES = [
   },
 ] as const;
 
-const PAUSE_OPTIONS = [
+const PAUSE_DURATIONS = [
   { hours: 1, label: "1h" },
   { hours: 4, label: "4h" },
   { hours: 24, label: "24h" },
-  { hours: 0, label: "Off" },
 ] as const;
 
 export default function SettingsForm({
@@ -67,6 +66,11 @@ export default function SettingsForm({
 
   const [isPaused, setIsPaused] = useState(false);
   const [pausedRemaining, setPausedRemaining] = useState(0);
+  const [pauseEnabled, setPauseEnabled] = useState(() => {
+    if (!initialPausedUntil) return false;
+    return new Date(initialPausedUntil).getTime() > Date.now();
+  });
+  const [activeDuration, setActiveDuration] = useState(1);
 
   useEffect(() => {
     function update() {
@@ -83,6 +87,7 @@ export default function SettingsForm({
         );
       } else {
         setPausedRemaining(0);
+        setPauseEnabled(false);
       }
     }
     update();
@@ -292,33 +297,60 @@ export default function SettingsForm({
           <h2 className="text-white font-semibold text-lg">
             Pause Notifications
           </h2>
-          {isPaused && (
-            <span className="text-xs text-amber-400 font-medium bg-amber-500/10 px-2.5 py-1 rounded-full">
-              {pausedRemaining}m remaining
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {isPaused && (
+              <span className="text-xs text-amber-400 font-medium bg-amber-500/10 px-2.5 py-1 rounded-full">
+                {pausedRemaining}m remaining
+              </span>
+            )}
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pauseEnabled}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  setPauseEnabled(enabled);
+                  if (enabled) {
+                    handlePause(activeDuration);
+                  } else {
+                    handlePause(0);
+                  }
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-slate-600 rounded-full peer peer-checked:bg-indigo-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
+            </label>
+          </div>
         </div>
         <p className="text-slate-400 text-sm mb-4">
           Temporarily silence all nudges. Your preferences will resume
           automatically.
         </p>
-        <div className="flex gap-3">
-          {PAUSE_OPTIONS.map((opt) => (
-            <button
-              key={opt.hours}
-              type="button"
-              disabled={isPausing}
-              onClick={() => handlePause(opt.hours)}
-              className={`flex-1 rounded-lg border text-sm font-medium px-3 py-2.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                (opt.hours === 0 && !isPaused) ||
-                (opt.hours > 0 && isPaused)
-                  ? "border-slate-600 text-slate-400 bg-slate-700/30"
-                  : "border-indigo-500/40 text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+            pauseEnabled ? "max-h-20 opacity-100" : "max-h-0 opacity-0"
+          }`}
+        >
+          <div className="flex gap-3 pt-1">
+            {PAUSE_DURATIONS.map((opt) => (
+              <button
+                key={opt.hours}
+                type="button"
+                disabled={isPausing}
+                onClick={() => {
+                  setActiveDuration(opt.hours);
+                  handlePause(opt.hours);
+                }}
+                className={`flex-1 rounded-lg border text-sm font-medium px-3 py-2.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeDuration === opt.hours
+                    ? "border-indigo-500 bg-indigo-500/20 text-indigo-200 shadow-sm shadow-indigo-500/20"
+                    : "border-slate-600 text-slate-400 bg-slate-700/30 hover:border-slate-500 hover:text-slate-300"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
     </div>

@@ -21,14 +21,24 @@ function formatDate(iso: string): string {
 export default function StressAlert({ userId }: { userId: string }) {
   const [data, setData] = useState<StressData | null>(null);
   const [dismissed, setDismissed] = useState(() => {
-    if (typeof sessionStorage === "undefined") return false;
-    return sessionStorage.getItem("stress-alert-dismissed") === "true";
+    try {
+      if (typeof sessionStorage === "undefined") return false;
+      return sessionStorage.getItem("stress-alert-dismissed") === "true";
+    } catch {
+      return false;
+    }
   });
 
   useEffect(() => {
     fetch("/api/stress")
       .then((r) => r.json())
-      .then((d) => setData(d))
+      .then((d) => {
+        if (d && typeof d.stressLevel === "string") {
+          setData(d);
+        } else {
+          setData(null);
+        }
+      })
       .catch(() => setData(null));
   }, [userId]);
 
@@ -40,7 +50,11 @@ export default function StressAlert({ userId }: { userId: string }) {
 
   function handleDismiss() {
     setDismissed(true);
-    sessionStorage.setItem("stress-alert-dismissed", "true");
+    try {
+      sessionStorage.setItem("stress-alert-dismissed", "true");
+    } catch {
+      // Silently fail if storage is unavailable
+    }
   }
 
   const range =
