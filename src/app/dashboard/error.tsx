@@ -1,6 +1,36 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useState } from "react";
+import { X, Smartphone, Share2, ArrowDown, Plus, CheckCircle } from "lucide-react";
+
+const steps = [
+  {
+    icon: Share2,
+    label: 'Tap the share icon   ⋯   at the bottom of Safari',
+  },
+  {
+    icon: ArrowDown,
+    label: "Scroll down and tap Add to Home Screen",
+  },
+  {
+    icon: Plus,
+    label: "Tap Add in the top right corner",
+  },
+  {
+    icon: CheckCircle,
+    label: "Open DuePulse from your home screen",
+  },
+];
+
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (window.navigator as { standalone?: boolean }).standalone === true;
+}
 
 export default function DashboardError({
   error,
@@ -9,9 +39,68 @@ export default function DashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    console.error("Dashboard error:", error);
-  }, [error]);
+  const [showDetails, setShowDetails] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  const iosSafari = isIOS() && !isStandalone();
+
+  if (iosSafari && !dismissed) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+        <div className="text-center max-w-sm w-full">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/20 mb-6">
+            <Smartphone className="text-indigo-400 w-8 h-8" />
+          </div>
+
+          <h1 className="text-white font-semibold text-2xl mb-2">
+            Add DuePulse to your Home Screen
+          </h1>
+          <p className="text-slate-400 text-sm mb-8 leading-relaxed">
+            DuePulse works best as a standalone app.
+            <br />
+            Follow the steps below to install it.
+          </p>
+
+          <div className="text-left space-y-5 mb-8">
+            {steps.map((s, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold shrink-0 mt-0.5">
+                  {i + 1}
+                </span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <s.icon className="text-indigo-400 w-5 h-5 shrink-0" />
+                  <p className="text-slate-300 text-sm leading-snug">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => {
+              setDismissed(true);
+              reset();
+            }}
+            className="rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 text-base font-medium transition-colors w-full"
+          >
+            Try Again
+          </button>
+
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="mt-4 text-slate-500 hover:text-slate-400 text-xs transition-colors bg-transparent"
+          >
+            {showDetails ? "Hide technical details" : "Show technical details"}
+          </button>
+
+          {showDetails && (
+            <p className="mt-3 text-red-400 text-xs font-mono bg-slate-800 rounded-lg p-3 text-left break-all max-h-32 overflow-y-auto">
+              {error.message}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -22,9 +111,6 @@ export default function DashboardError({
         <p className="text-slate-400 text-base mb-6">
           Couldn&apos;t load your dashboard. This usually happens after a fresh
           sign-in — try reloading.
-        </p>
-        <p className="text-red-400 text-xs mb-6 font-mono bg-slate-800 rounded-lg p-3 text-left break-all max-h-32 overflow-y-auto">
-          {error.message}
         </p>
         <button
           onClick={reset}
