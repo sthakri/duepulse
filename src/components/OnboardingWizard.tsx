@@ -124,6 +124,11 @@ export default function OnboardingWizard({
         return;
       }
 
+      if (!("serviceWorker" in navigator)) {
+        toast.error("Notifications are not supported in this browser");
+        setStep(4);
+        return;
+      }
       let registration;
       try {
         const existing = await navigator.serviceWorker.getRegistration("/");

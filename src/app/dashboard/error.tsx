@@ -1,35 +1,31 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { X, Smartphone, Share2, ArrowDown, Plus, CheckCircle } from "lucide-react";
+import { useState } from "react";
+import { Smartphone, Share2, ArrowDown, Plus, CheckCircle, Ellipsis } from "lucide-react";
 
-const steps = [
-  {
-    icon: Share2,
-    label: 'Tap the share icon   ⋯   at the bottom of Safari',
-  },
-  {
-    icon: ArrowDown,
-    label: "Scroll down and tap Add to Home Screen",
-  },
-  {
-    icon: Plus,
-    label: "Tap Add in the top right corner",
-  },
-  {
-    icon: CheckCircle,
-    label: "Open DuePulse from your home screen",
-  },
+type Platform = "ios" | "android" | null;
+
+const iosSteps = [
+  { icon: Share2, label: "Tap the share icon at the bottom of Safari" },
+  { icon: ArrowDown, label: "Scroll down and tap Add to Home Screen" },
+  { icon: Plus, label: "Tap Add in the top right corner" },
+  { icon: CheckCircle, label: "Open DuePulse from your home screen" },
 ];
 
-function isIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent);
-}
+const androidSteps = [
+  { icon: Ellipsis, label: "Tap the three dots in the top right of Chrome" },
+  { icon: ArrowDown, label: "Tap Add to Home Screen" },
+  { icon: Plus, label: "Tap Add in the bottom right" },
+  { icon: CheckCircle, label: "Open DuePulse from your home screen" },
+];
 
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  return (window.navigator as { standalone?: boolean }).standalone === true;
+function detectPlatform(): Platform {
+  if (typeof navigator === "undefined" || typeof window === "undefined") return null;
+  if ((window.navigator as { standalone?: boolean }).standalone === true) return null;
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) return "ios";
+  if (/Android/.test(ua)) return "android";
+  return null;
 }
 
 export default function DashboardError({
@@ -41,10 +37,12 @@ export default function DashboardError({
 }) {
   const [showDetails, setShowDetails] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const platform = detectPlatform();
 
-  const iosSafari = isIOS() && !isStandalone();
+  if (platform && !dismissed) {
+    const steps = platform === "ios" ? iosSteps : androidSteps;
+    const osName = platform === "ios" ? "iOS" : "Android";
 
-  if (iosSafari && !dismissed) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
         <div className="text-center max-w-sm w-full">
@@ -56,7 +54,7 @@ export default function DashboardError({
             Add DuePulse to your Home Screen
           </h1>
           <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-            DuePulse works best as a standalone app.
+            DuePulse works best as a standalone app on {osName}.
             <br />
             Follow the steps below to install it.
           </p>
@@ -69,7 +67,9 @@ export default function DashboardError({
                 </span>
                 <div className="flex items-center gap-2.5 min-w-0">
                   <s.icon className="text-indigo-400 w-5 h-5 shrink-0" />
-                  <p className="text-slate-300 text-sm leading-snug">{s.label}</p>
+                  <p className="text-slate-300 text-sm leading-snug text-left">
+                    {s.label}
+                  </p>
                 </div>
               </div>
             ))}

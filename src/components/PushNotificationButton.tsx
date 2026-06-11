@@ -40,8 +40,10 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
   // Re-associate existing push subscription with the current userId on mount
   // and whenever the userId changes (e.g. account switch).
   useEffect(() => {
+    if (!("Notification" in window)) return;
     if (Notification.permission !== "granted") return;
 
+    if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker
       .getRegistration("/")
       .then((reg) => reg?.pushManager.getSubscription() ?? null)
@@ -74,6 +76,11 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
 
   async function handleClick() {
     if (state !== "idle") return;
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      toast.error("Push notifications are not supported in this browser");
+      setState("unsupported");
+      return;
+    }
     setState("requesting");
 
     const permission = await Notification.requestPermission();
