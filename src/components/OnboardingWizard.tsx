@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, CheckCircle, LogOut } from "lucide-react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { env } from "@/lib/env";
 import { Button } from "@/components/ui/button";
@@ -74,19 +75,55 @@ export default function OnboardingWizard({
     setLoading(false);
   }
 
+  function isIOS(): boolean {
+    if (typeof window === "undefined") return false;
+    return (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+    );
+  }
+
   async function handleEnableNotifications() {
-    const {
-      data: { user },
-    } = await createClient().auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await createClient().auth.getUser();
 
-    if (!user) {
-      setStep(4);
-      return;
-    }
+      if (!user) {
+        setStep(4);
+        return;
+      }
 
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      // Ensure service worker is registered and ready
+      if (isIOS() && !("Notification" in window)) {
+        toast.info(
+          "Add DuePulse to your Home Screen to enable notifications on iPhone",
+          { duration: 6000 },
+        );
+        setStep(4);
+        return;
+      }
+
+      if (!("Notification" in window)) {
+        toast.error("Notifications are not supported in this browser");
+        setStep(4);
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setStep(4);
+        return;
+      }
+
+      if (process.env.NODE_ENV === "development") {
+        toast.info(
+          "Push notifications are unavailable in development mode. They will work in production.",
+          { duration: 6000 },
+        );
+        setStep(4);
+        return;
+      }
+
       let registration;
       try {
         const existing = await navigator.serviceWorker.getRegistration("/");
@@ -95,7 +132,7 @@ export default function OnboardingWizard({
         }
         registration = await navigator.serviceWorker.ready;
       } catch {
-        // If service worker registration fails, we can't proceed
+        toast.error("Failed to register service worker for notifications");
         setStep(4);
         return;
       }
@@ -107,11 +144,10 @@ export default function OnboardingWizard({
         ),
       });
 
-      // Extract the keys from the subscription
       const json = sub.toJSON();
       const keys = json.keys!;
 
-      await fetch("/api/push/subscribe", {
+      const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -120,6 +156,15 @@ export default function OnboardingWizard({
           auth: keys.auth,
         }),
       });
+
+      if (!res.ok) {
+        throw new Error("Failed to save push subscription");
+      }
+
+      toast.success("Nudges enabled! You'll get timely reminders.");
+    } catch (err) {
+      console.error("Push notification setup failed:", err);
+      toast.error("Could not enable notifications. You can try again later.");
     }
     setStep(4);
   }

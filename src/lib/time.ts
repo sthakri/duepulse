@@ -24,17 +24,19 @@ export function getLocalDay(date: Date, tz: string): number {
 }
 
 export function formatLocalHour(hour: number, tz?: string): string {
-  const opts: Intl.DateTimeFormatOptions = {
+  const date = new Date(2000, 0, 1, hour, 0, 0);
+  const time = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     hour12: true,
-  };
-  if (tz) {
-    opts.timeZone = tz;
-    opts.timeZoneName = "short";
-  }
-  return new Intl.DateTimeFormat("en-US", opts).format(
-    new Date(Date.UTC(2000, 0, 1, hour, 0, 0)),
-  );
+  }).format(date);
+  if (!tz) return time;
+  const abbr = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    timeZoneName: "short",
+  })
+    .formatToParts(new Date())
+    .find((p) => p.type === "timeZoneName")?.value ?? "";
+  return `${time} ${abbr}`;
 }
 
 export function getDayRange(date: Date, tz: string, days: number): string[] {
