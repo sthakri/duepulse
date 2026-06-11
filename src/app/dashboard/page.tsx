@@ -11,6 +11,7 @@ import TestNotifButton from "@/components/TestNotifButton";
 import Link from "next/link";
 import { LogOut, Settings } from "lucide-react";
 import RefreshButton from "@/components/RefreshButton";
+import MobileInstallGuide from "@/components/MobileInstallGuide";
 import { analyzeProductiveWindows } from "@/lib/ml";
 import { getLocalDate, getLocalHour, getLocalDay } from "@/lib/time";
 
@@ -175,6 +176,7 @@ export default async function DashboardPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
+        <MobileInstallGuide />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="order-1 lg:order-0 lg:col-span-2 lg:col-start-1 lg:row-start-1 min-h-0 self-start">
             <StressAlert userId={userId} />

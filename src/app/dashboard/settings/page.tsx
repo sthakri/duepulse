@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import SettingsForm from "@/components/SettingsForm";
+import MobileInstallGuide from "@/components/MobileInstallGuide";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -96,6 +97,7 @@ export default async function SettingsPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6">
+        <MobileInstallGuide />
         <a
           href="/dashboard"
           className="inline-flex items-center gap-1.5 text-slate-400 hover:text-white text-sm mb-6 transition-colors"
