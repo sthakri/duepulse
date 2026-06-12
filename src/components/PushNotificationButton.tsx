@@ -57,7 +57,7 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
           keys: { p256dh: string; auth: string };
         };
         try {
-          await fetch("/api/push/subscribe", {
+          const res = await fetch("/api/push/subscribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -66,8 +66,12 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
               auth: json.keys.auth,
             }),
           });
-        } catch {
-          // Best-effort — don't block UI if the re-association request fails
+          if (!res.ok) {
+            const body = await res.text();
+            console.warn("push re-association failed:", res.status, body);
+          }
+        } catch (err) {
+          console.warn("push re-association error:", err);
         }
         setState("subscribed");
       })
@@ -155,11 +159,12 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
 
       if (!res.ok) {
         const body = await res.text();
-        console.error("subscribe failed:", res.status, body);
-        throw new Error("Subscribe failed");
+        console.warn("push subscribe failed:", res.status, body);
+        toast.warning("Subscription saved locally — server sync will retry");
+      } else {
+        toast.success("Nudges enabled");
       }
       setState("subscribed");
-      window.location.reload();
     } catch (err) {
       console.error(err);
       toast.error("Failed to enable notifications");

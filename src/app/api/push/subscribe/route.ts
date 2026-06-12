@@ -11,7 +11,7 @@ const ratelimit = new Ratelimit({
     url: env.UPSTASH_REDIS_REST_URL,
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
-  limiter: Ratelimit.slidingWindow(3, "1 h"),
+  limiter: Ratelimit.slidingWindow(10, "1 h"),
 });
 
 export async function POST(req: NextRequest) {
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
   // ── 2. Rate-limit by the verified user ID ─────────────────────────────────
   const { success: rateLimitOk } = await ratelimit.limit(userId);
   if (!rateLimitOk) {
+    console.warn("push subscribe rate limited:", userId);
     return NextResponse.json(
       { error: "Too many requests. Try again later." },
       { status: 429 }
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
     !(body as Record<string, unknown>).p256dh ||
     !(body as Record<string, unknown>).auth
   ) {
+    console.warn("push subscribe validation failed:", body);
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
