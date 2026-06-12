@@ -18,12 +18,12 @@ function hourEmoji(h: number): string {
 export default function ProductiveWindowsChart({ data, userTz }: Props) {
   if (data.length < 5) {
     return (
-      <div className="rounded-xl bg-slate-800 p-4">
-        <h2 className="text-white font-semibold">Your Focus Windows</h2>
-        <p className="text-slate-400 text-xs mt-1 mb-3">
-          Hours when you visit DuePulse most — best times to review assignments
+      <div className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] p-5">
+        <h2 className="text-[#F6F1E8] font-semibold text-sm">Best Time to Review</h2>
+        <p className="text-[#7E8AA0] text-xs mt-1 mb-3">
+          When you&apos;re most active on DuePulse
         </p>
-        <p className="text-slate-400 text-sm">
+        <p className="text-[#AAB4C4] text-sm">
           DuePulse is learning your focus patterns. Check back after a few more
           visits.
         </p>
@@ -46,35 +46,38 @@ export default function ProductiveWindowsChart({ data, userTz }: Props) {
   const runnerUps = aggregated.slice(1, 3).map(([h]) => h);
 
   return (
-    <div className="rounded-xl bg-slate-800 p-4">
-      <div className="space-y-3">
+    <div className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] p-5">
+      <div className="space-y-4">
+        {/* Header */}
         <div>
-          <h3 className="text-white font-semibold text-sm">
+          <h3 className="text-[#F6F1E8] font-semibold text-sm">
             ⏰ Best Time to Review
           </h3>
-          <p className="text-slate-400 text-xs mt-0.5">
+          <p className="text-[#7E8AA0] text-xs mt-0.5">
             When you&apos;re most active on DuePulse
           </p>
         </div>
 
-        <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 text-center">
+        {/* Peak hour highlight */}
+        <div className="bg-[#1C2637] border border-[#D6B36A]/20 rounded-xl p-4 text-center">
           <div className="text-2xl mb-1">{hourEmoji(topHour)}</div>
-          <div className="text-white font-bold text-xl">
+          <div className="text-[#F6F1E8] font-bold text-xl">
             {formatLocalHour(topHour, userTz)}
           </div>
-          <div className="text-indigo-400 text-xs mt-1">
+          <div className="text-[#D6B36A] text-xs mt-1 font-medium">
             Your peak focus hour
           </div>
         </div>
 
+        {/* Runner-ups */}
         {runnerUps.length > 0 && (
           <div>
-            <p className="text-slate-500 text-xs mb-1.5">Also active at:</p>
+            <p className="text-[#7E8AA0] text-xs mb-2">Also active at:</p>
             <div className="flex gap-2">
               {runnerUps.map((h) => (
                 <span
                   key={h}
-                  className="bg-slate-700 text-slate-300 text-xs rounded-md px-2 py-1"
+                  className="bg-[#1C2637] border border-[#2A3444] text-[#AAB4C4] text-xs rounded-lg px-3 py-1.5 font-medium"
                 >
                   {formatLocalHour(h, userTz)}
                 </span>
@@ -83,7 +86,7 @@ export default function ProductiveWindowsChart({ data, userTz }: Props) {
           </div>
         )}
 
-        <p className="text-slate-600 text-xs">
+        <p className="text-[#7E8AA0] text-xs">
           Updates every time you open DuePulse
         </p>
       </div>

@@ -17,18 +17,8 @@ interface DayEntry {
 }
 
 const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 function fmtShort(d: Date): string {
@@ -64,8 +54,9 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
 
     const counts = Array.from(countMap.values());
     const maxDomain = counts.length > 0 ? Math.max(5, ...counts) : 5;
+    // Color scale: dark charcoal (empty) → clay red (heavy)
     const colorScale = d3
-      .scaleSequential(d3.interpolateRgb("#1e3a5f", "#ef4444"))
+      .scaleSequential(d3.interpolateRgb("#1C2637", "#C97064"))
       .domain([0, maxDomain]);
 
     const now = new Date();
@@ -106,7 +97,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
         .attr("x", marginLeft - 8)
         .attr("y", (_, i) => marginTop + i * step + cellSize / 2 + 4)
         .attr("text-anchor", "end")
-        .attr("fill", "#94a3b8")
+        .attr("fill", "#7E8AA0")
         .attr("font-size", "10px")
         .text((l) => l);
 
@@ -121,7 +112,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
             `translate(${marginLeft + i * step + cellSize / 2}, ${marginTop + gridH + 8}) rotate(-45)`,
         )
         .attr("text-anchor", "end")
-        .attr("fill", "#94a3b8")
+        .attr("fill", "#7E8AA0")
         .attr("font-size", "10px")
         .text((d) => fmtShort(d));
 
@@ -137,9 +128,9 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
         .attr("y", (d) => marginTop + d.row * step)
         .attr("width", cellSize)
         .attr("height", cellSize)
-        .attr("rx", 3)
+        .attr("rx", 5)
         .attr("fill", (d) => colorScale(countMap.get(d.dateStr) ?? 0))
-        .attr("stroke", (d) => (d.dateStr === todayStr ? "#6366f1" : "#334155"))
+        .attr("stroke", (d) => (d.dateStr === todayStr ? "#D6B36A" : "#2A3444"))
         .attr("stroke-width", (d) => (d.dateStr === todayStr ? 2 : 0.5));
 
       cellGroups.append("title").text((d) => {
@@ -178,7 +169,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
         .append("text")
         .attr("x", marginLeft)
         .attr("y", legendY + swatchSize - 1)
-        .attr("fill", "#94a3b8")
+        .attr("fill", "#7E8AA0")
         .attr("font-size", "11px")
         .text("Low");
 
@@ -191,7 +182,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
         .attr("y", legendY)
         .attr("width", swatchSize)
         .attr("height", swatchSize)
-        .attr("rx", 2)
+        .attr("rx", 3)
         .attr("fill", (v) => colorScale(v));
 
       svgSel
@@ -201,7 +192,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
           swatchStartX + legendDomain.length * (swatchSize + swatchGap),
         )
         .attr("y", legendY + swatchSize - 1)
-        .attr("fill", "#94a3b8")
+        .attr("fill", "#7E8AA0")
         .attr("font-size", "11px")
         .text("High");
     }
@@ -214,10 +205,12 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
   }, [data, userTz]);
 
   return (
-    <div className="rounded-xl bg-slate-800 p-4 sm:p-6">
-      <p className="text-white font-semibold text-lg mb-4 text-center">
-        Workload — Next 6 Weeks
-      </p>
+    <div className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] p-5 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+      <div className="mb-4">
+        <p className="text-[#F6F1E8] font-semibold text-base">
+          Workload — Next 6 Weeks
+        </p>
+      </div>
       <div ref={wrapperRef} className="w-full max-w-85 mx-auto">
         <svg ref={svgRef} className="w-full h-auto block" />
       </div>

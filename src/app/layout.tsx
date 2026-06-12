@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Manrope } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import MobileBrowserGate from "@/components/MobileBrowserGate";
 import "./globals.css";
 
-const inter = Inter({
+const manrope = Manrope({
   subsets: ["latin"],
+  variable: "--font-sans",
 });
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#6366f1" />
+        <meta name="theme-color" content="#D6B36A" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
           name="apple-mobile-web-app-status-bar-style"
@@ -30,7 +31,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.className} min-h-full flex flex-col bg-slate-900`}
+        className={`${manrope.variable} font-sans min-h-full flex flex-col bg-[#0C111B]`}
       >
         <MobileBrowserGate />
         {children}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Smartphone, Share2, ArrowDown, Plus, CheckCircle, Ellipsis } from "lucide-react";
+import { Smartphone, Share2, ArrowDown, Plus, CheckCircle, Ellipsis, Zap } from "lucide-react";
 
 type Platform = "ios" | "android" | null;
 
@@ -44,16 +44,16 @@ export default function DashboardError({
     const osName = platform === "ios" ? "iOS" : "Android";
 
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+      <div className="flex-1 bg-[#0C111B] flex items-center justify-center p-6">
         <div className="text-center max-w-sm w-full">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/20 mb-6">
-            <Smartphone className="text-indigo-400 w-8 h-8" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#D6B36A]/10 border border-[#D6B36A]/20 mb-6">
+            <Smartphone className="text-[#D6B36A] w-8 h-8" />
           </div>
 
-          <h1 className="text-white font-semibold text-2xl mb-2">
+          <h1 className="text-[#F6F1E8] font-bold text-2xl mb-2">
             Add DuePulse to your Home Screen
           </h1>
-          <p className="text-slate-400 text-sm mb-8 leading-relaxed">
+          <p className="text-[#AAB4C4] text-sm mb-8 leading-relaxed">
             DuePulse works best as a standalone app on {osName}.
             <br />
             Follow the steps below to install it.
@@ -62,12 +62,12 @@ export default function DashboardError({
           <div className="text-left space-y-5 mb-8">
             {steps.map((s, i) => (
               <div key={i} className="flex items-start gap-3">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold shrink-0 mt-0.5">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#1C2637] border border-[#2A3444] text-[#AAB4C4] text-xs font-bold shrink-0 mt-0.5">
                   {i + 1}
                 </span>
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <s.icon className="text-indigo-400 w-5 h-5 shrink-0" />
-                  <p className="text-slate-300 text-sm leading-snug text-left">
+                  <s.icon className="text-[#D6B36A] w-5 h-5 shrink-0" />
+                  <p className="text-[#AAB4C4] text-sm leading-snug text-left">
                     {s.label}
                   </p>
                 </div>
@@ -80,20 +80,20 @@ export default function DashboardError({
               setDismissed(true);
               reset();
             }}
-            className="rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 text-base font-medium transition-colors w-full"
+            className="rounded-xl bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] px-6 py-3 text-base font-semibold transition-colors w-full"
           >
             Try Again
           </button>
 
           <button
             onClick={() => setShowDetails(!showDetails)}
-            className="mt-4 text-slate-500 hover:text-slate-400 text-xs transition-colors bg-transparent"
+            className="mt-4 text-[#7E8AA0] hover:text-[#AAB4C4] text-xs transition-colors bg-transparent"
           >
             {showDetails ? "Hide technical details" : "Show technical details"}
           </button>
 
           {showDetails && (
-            <p className="mt-3 text-red-400 text-xs font-mono bg-slate-800 rounded-lg p-3 text-left break-all max-h-32 overflow-y-auto">
+            <p className="mt-3 text-[#C97064] text-xs font-mono bg-[#151C2B] border border-[#2A3444] rounded-xl p-3 text-left break-all max-h-32 overflow-y-auto">
               {error.message}
             </p>
           )}
@@ -103,18 +103,21 @@ export default function DashboardError({
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="flex-1 flex items-center justify-center p-4">
       <div className="text-center max-w-md">
-        <h1 className="text-white font-semibold text-2xl mb-3">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#D6B36A]/10 border border-[#D6B36A]/20 mb-6">
+          <Zap className="text-[#D6B36A] w-8 h-8" />
+        </div>
+        <h1 className="text-[#F6F1E8] font-bold text-2xl mb-3">
           Something went wrong
         </h1>
-        <p className="text-slate-400 text-base mb-6">
+        <p className="text-[#AAB4C4] text-base mb-6">
           Couldn&apos;t load your dashboard. This usually happens after a fresh
           sign-in — try reloading.
         </p>
         <button
           onClick={reset}
-          className="rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 text-base font-medium transition-colors"
+          className="rounded-xl bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] px-6 py-3 text-base font-semibold transition-colors"
         >
           Try Again
         </button>

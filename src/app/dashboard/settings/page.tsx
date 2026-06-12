@@ -3,6 +3,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import SettingsForm from "@/components/SettingsForm";
 import MobileInstallGuide from "@/components/MobileInstallGuide";
+import PushNotificationButton from "@/components/PushNotificationButton";
+
+export const metadata = { title: "Settings — DuePulse" };
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -15,7 +18,9 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("quiet_hours_start, quiet_hours_end, nudge_frequency, stress_threshold, nudge_paused_until, timezone")
+    .select(
+      "quiet_hours_start, quiet_hours_end, nudge_frequency, stress_threshold, nudge_paused_until, timezone",
+    )
     .eq("id", user.id)
     .single();
 
@@ -95,21 +100,18 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900">
-      <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6">
+    <>
+      {/* ── Topbar ──────────────────────────────────────────────────────────── */}
+      <header className="border-b border-[#2A3444] bg-[#0C111B] sticky top-0 z-30 h-[57px]">
+        <div className="pl-14 lg:pl-0 px-5 h-full flex items-center justify-between gap-4">
+          <h1 className="text-[#F6F1E8] font-semibold text-base">Settings</h1>
+          <PushNotificationButton userId={user.id} />
+        </div>
+      </header>
+
+      {/* ── Content ─────────────────────────────────────────────────────────── */}
+      <main className="flex-1 px-5 py-6 sm:px-6 sm:py-8 max-w-2xl mx-auto w-full">
         <MobileInstallGuide />
-        <a
-          href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-slate-400 hover:text-white text-sm mb-6 transition-colors"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5m7-7-7 7 7 7" />
-          </svg>
-          Back to dashboard
-        </a>
-
-        <h1 className="text-2xl font-bold text-white mb-8">Notification Settings</h1>
-
         <SettingsForm
           saveSettings={saveSettings}
           pauseNotifications={pauseNotifications}
@@ -119,7 +121,7 @@ export default async function SettingsPage() {
           initialThreshold={profile?.stress_threshold ?? 5}
           initialPausedUntil={profile?.nudge_paused_until ?? null}
         />
-      </div>
-    </div>
+      </main>
+    </>
   );
 }

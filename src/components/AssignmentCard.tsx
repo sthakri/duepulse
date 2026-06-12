@@ -81,7 +81,7 @@ export default function AssignmentCard({
   points_possible,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   canvas_assignment_id,
-  course_color = "#6366f1",
+  course_color = "#D6B36A",
   userTz,
 }: AssignmentCardProps) {
   const dueInfo = due_at ? getDueDateInfo(due_at, userTz) : null
@@ -91,33 +91,33 @@ export default function AssignmentCard({
   return (
     <Card
       className={cn(
-        "bg-slate-800 rounded-xl p-4 flex flex-col gap-2 ring-0 border-0",
-        isOverdue && "opacity-60"
+        "rounded-[18px] bg-[#151C2B] border border-[#2A3444] p-4 flex flex-col gap-2 ring-0 shadow-none hover:border-[#3A4454] transition-colors duration-150",
+        isOverdue && "opacity-70"
       )}
-      style={{ borderLeft: `4px solid ${course_color}` }}
+      style={{ borderLeft: `3px solid ${course_color}` }}
     >
-      <p className="text-slate-400 text-xs uppercase tracking-wide leading-none">
+      <p className="text-[#7E8AA0] text-xs uppercase tracking-wide leading-none">
         {course_name}
       </p>
-      <p className="text-white font-semibold text-base">{title}</p>
+      <p className="text-[#F6F1E8] font-semibold text-base">{title}</p>
       <div className="flex flex-wrap items-center gap-2">
         {due_at ? (
-          <span className="text-slate-400 text-xs">{dueInfo!.label}</span>
+          <span className="text-[#AAB4C4] text-xs">{dueInfo!.label}</span>
         ) : (
-          <span className="text-slate-500 text-xs">No due date</span>
+          <span className="text-[#7E8AA0] text-xs">No due date</span>
         )}
         {points_possible !== null && (
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-slate-700 text-slate-300">
+          <span className="inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-[#1C2637] border border-[#2A3444] text-[#AAB4C4]">
             {points_possible} pts
           </span>
         )}
         {isDueSoon && (
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-amber-500 text-white">
+          <span className="inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-[#D6B36A]/15 border border-[#D6B36A]/30 text-[#D6B36A]">
             Due Soon
           </span>
         )}
         {isOverdue && (
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-red-500 text-white">
+          <span className="inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-[#C97064]/15 border border-[#C97064]/30 text-[#C97064]">
             Overdue
           </span>
         )}

@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Settings, LogOut } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { Settings } from "lucide-react";
 
 interface Props {
   email: string;
@@ -14,7 +12,6 @@ interface Props {
 }
 
 export default function UserMenu({ email, memberSince, initial }: Props) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -55,18 +52,13 @@ export default function UserMenu({ email, memberSince, initial }: Props) {
     };
   }, [open]);
 
-  async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut({ scope: "global" });
-    router.push("/");
-  }
 
   return (
     <>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-9 h-9 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-semibold text-sm hover:bg-indigo-500/30 transition-colors"
+        className="w-8 h-8 rounded-full bg-[#D6B36A]/15 border border-[#D6B36A]/30 flex items-center justify-center text-[#D6B36A] font-semibold text-sm hover:bg-[#D6B36A]/25 transition-colors"
         aria-label="User menu"
       >
         {initial}
@@ -82,31 +74,24 @@ export default function UserMenu({ email, memberSince, initial }: Props) {
               right: position.right,
               zIndex: 9999,
             }}
-            className="w-56 rounded-xl bg-slate-800 border border-slate-700 shadow-2xl overflow-hidden"
+            className="w-56 rounded-[18px] bg-[#151C2B] border border-[#2A3444] shadow-[0_20px_60px_rgba(0,0,0,0.4)] overflow-hidden"
           >
-            <div className="px-4 py-3 border-b border-slate-700">
-              <p className="text-white text-sm font-medium truncate">
+            <div className="px-4 py-3 border-b border-[#2A3444]">
+              <p className="text-[#F6F1E8] text-sm font-medium truncate">
                 {email}
               </p>
-              <p className="text-slate-400 text-xs mt-0.5">
+              <p className="text-[#7E8AA0] text-xs mt-0.5">
                 Member since {memberSince}
               </p>
             </div>
             <Link
               href="/dashboard/settings"
               onClick={() => setOpen(false)}
-              className="w-full flex items-center gap-2.5 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700/60 text-sm transition-colors"
+              className="w-full flex items-center gap-2.5 px-4 py-3 text-[#AAB4C4] hover:text-[#F6F1E8] hover:bg-[#1C2637] text-sm transition-colors"
             >
               <Settings size={14} />
               Settings
             </Link>
-            <button
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-2.5 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700/60 text-sm transition-colors bg-transparent"
-            >
-              <LogOut size={14} />
-              Sign out
-            </button>
           </div>,
           document.body,
         )}

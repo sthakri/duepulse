@@ -4,8 +4,16 @@ import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 
 type SettingsFormProps = {
-  saveSettings: (formData: FormData) => Promise<{ success?: boolean; error?: string }>;
-  pauseNotifications: (formData: FormData) => Promise<{ success?: boolean; error?: string; pausedUntil?: string | null }>;
+  saveSettings: (
+    formData: FormData,
+  ) => Promise<{ success?: boolean; error?: string }>;
+  pauseNotifications: (
+    formData: FormData,
+  ) => Promise<{
+    success?: boolean;
+    error?: string;
+    pausedUntil?: string | null;
+  }>;
   initialQuietStart: number | null;
   initialQuietEnd: number | null;
   initialFrequency: string;
@@ -45,6 +53,41 @@ const PAUSE_DURATIONS = [
   { hours: 24, label: "24h" },
 ] as const;
 
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] p-5 sm:p-6">
+      <h2 className="text-[#F6F1E8] font-semibold text-base mb-4">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="sr-only peer"
+      />
+      <div className="w-9 h-5 bg-[#2A3444] rounded-full peer peer-checked:bg-[#D6B36A] transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
+    </label>
+  );
+}
+
 export default function SettingsForm({
   saveSettings,
   pauseNotifications,
@@ -83,7 +126,12 @@ export default function SettingsForm({
       setIsPaused(paused);
       if (paused) {
         setPausedRemaining(
-          Math.max(0, Math.round((new Date(initialPausedUntil).getTime() - Date.now()) / 60000)),
+          Math.max(
+            0,
+            Math.round(
+              (new Date(initialPausedUntil).getTime() - Date.now()) / 60000,
+            ),
+          ),
         );
       } else {
         setPausedRemaining(0);
@@ -115,7 +163,6 @@ export default function SettingsForm({
   function handlePause(hours: number) {
     const fd = new FormData();
     fd.set("hours", String(hours));
-
     startPauseTransition(async () => {
       const result = await pauseNotifications(fd);
       if (result.error) {
@@ -138,34 +185,28 @@ export default function SettingsForm({
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5">
       <form action={handleSave}>
-        {/* ── Quiet Hours ────────────────────────────────────────────── */}
-        <section className="rounded-xl bg-slate-800 p-5">
+        {/* ── Quiet Hours ────────────────────────────────────────────────── */}
+        <Section title="Quiet Hours">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-white font-semibold text-lg">Quiet Hours</h2>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={quietEnabled}
-                onChange={(e) => setQuietEnabled(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-slate-600 rounded-full peer peer-checked:bg-indigo-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
-            </label>
+            <p className="text-[#AAB4C4] text-sm">
+              Block notifications during these hours
+            </p>
+            <Toggle checked={quietEnabled} onChange={setQuietEnabled} />
           </div>
 
           {quietEnabled && (
             <>
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="text-slate-400 text-xs font-semibold uppercase tracking-widest">
+                  <label className="text-[#7E8AA0] text-xs font-semibold uppercase tracking-widest block mb-1.5">
                     Start
                   </label>
                   <select
                     value={quietStart}
                     onChange={(e) => setQuietStart(Number(e.target.value))}
-                    className="mt-1.5 w-full rounded-lg bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-xl bg-[#0C111B] border border-[#2A3444] text-[#F6F1E8] text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#D6B36A]"
                   >
                     {HOURS.map((h) => (
                       <option key={h} value={h}>
@@ -175,13 +216,13 @@ export default function SettingsForm({
                   </select>
                 </div>
                 <div>
-                  <label className="text-slate-400 text-xs font-semibold uppercase tracking-widest">
+                  <label className="text-[#7E8AA0] text-xs font-semibold uppercase tracking-widest block mb-1.5">
                     End
                   </label>
                   <select
                     value={quietEnd}
                     onChange={(e) => setQuietEnd(Number(e.target.value))}
-                    className="mt-1.5 w-full rounded-lg bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-xl bg-[#0C111B] border border-[#2A3444] text-[#F6F1E8] text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#D6B36A]"
                   >
                     {HOURS.map((h) => (
                       <option key={h} value={h}>
@@ -192,48 +233,45 @@ export default function SettingsForm({
                 </div>
               </div>
 
-              {/* 24h Timeline Bar */}
-              <div className="flex h-8 rounded-lg overflow-hidden border border-slate-700">
+              {/* 24h timeline bar */}
+              <div className="flex h-7 rounded-lg overflow-hidden border border-[#2A3444]">
                 {timelineHours.map((h) => (
                   <div
                     key={h}
-                    className={`flex-1 flex items-center justify-center text-[10px] font-medium transition-colors ${
+                    className={`flex-1 flex items-center justify-center text-[9px] font-medium transition-colors ${
                       isInQuietZone(h)
-                        ? "bg-red-500/20 text-red-400"
-                        : "bg-indigo-500/10 text-slate-500"
+                        ? "bg-[#C97064]/20 text-[#C97064]"
+                        : "bg-[#D6B36A]/6 text-[#7E8AA0]"
                     }`}
-                    title={`${formatHour(h)}`}
+                    title={formatHour(h)}
                   >
-                    {h % 3 === 0 ? formatHour(h).split(" ")[0] : ""}
+                    {h % 6 === 0 ? String(h) : ""}
                   </div>
                 ))}
               </div>
-              <p className="text-slate-400 text-xs mt-2">
-                Red = quiet hours &mdash; no notifications will be sent
+              <p className="text-[#7E8AA0] text-xs mt-2">
+                Red = quiet — no notifications will be sent
               </p>
             </>
           )}
 
           {!quietEnabled && (
-            <p className="text-slate-400 text-sm">
-              Notifications will be sent at any hour
+            <p className="text-[#7E8AA0] text-sm">
+              Notifications can be sent at any hour
             </p>
           )}
-        </section>
+        </Section>
 
-        {/* ── Nudge Frequency ────────────────────────────────────────── */}
-        <section className="rounded-xl bg-slate-800 p-5 mt-6">
-          <h2 className="text-white font-semibold text-lg mb-4">
-            Nudge Frequency
-          </h2>
+        {/* ── Nudge Frequency ─────────────────────────────────────────────── */}
+        <Section title="Nudge Frequency">
           <div className="flex flex-col gap-3">
             {FREQUENCIES.map((opt) => (
               <label
                 key={opt.value}
-                className={`flex items-start gap-3 rounded-lg border p-3.5 cursor-pointer transition-colors ${
+                className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
                   frequency === opt.value
-                    ? "border-indigo-500 bg-indigo-500/10"
-                    : "border-slate-700 bg-slate-700/30 hover:bg-slate-700/50"
+                    ? "border-[#D6B36A]/40 bg-[#D6B36A]/8"
+                    : "border-[#2A3444] bg-[#1C2637]/50 hover:bg-[#1C2637]"
                 }`}
               >
                 <input
@@ -242,22 +280,24 @@ export default function SettingsForm({
                   value={opt.value}
                   checked={frequency === opt.value}
                   onChange={(e) => setFrequency(e.target.value)}
-                  className="mt-0.5 accent-indigo-500"
+                  className="mt-0.5"
+                  style={{ accentColor: "#D6B36A" }}
                 />
                 <div>
-                  <p className="text-white text-sm font-medium">{opt.label}</p>
-                  <p className="text-slate-400 text-xs mt-0.5">{opt.desc}</p>
+                  <p
+                    className={`text-sm font-medium ${frequency === opt.value ? "text-[#D6B36A]" : "text-[#F6F1E8]"}`}
+                  >
+                    {opt.label}
+                  </p>
+                  <p className="text-[#7E8AA0] text-xs mt-0.5">{opt.desc}</p>
                 </div>
               </label>
             ))}
           </div>
-        </section>
+        </Section>
 
-        {/* ── Workload Alert Threshold ───────────────────────────────── */}
-        <section className="rounded-xl bg-slate-800 p-5 mt-6">
-          <h2 className="text-white font-semibold text-lg mb-4">
-            Workload Alert Threshold
-          </h2>
+        {/* ── Workload Alert Threshold ─────────────────────────────────────── */}
+        <Section title="Workload Alert Threshold">
           <div className="flex items-center gap-4">
             <input
               type="number"
@@ -269,63 +309,54 @@ export default function SettingsForm({
                   Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1)),
                 )
               }
-              className="w-16 rounded-lg bg-slate-700 border border-slate-600 text-white text-center text-lg font-semibold px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-16 rounded-xl bg-[#0C111B] border border-[#2A3444] text-[#F6F1E8] text-center text-lg font-semibold px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#D6B36A]"
             />
-            <p className="text-slate-300 text-sm">
-              You&apos;ll see a stress alert when{" "}
-              <span className="text-white font-semibold">{threshold}+</span>{" "}
+            <p className="text-[#AAB4C4] text-sm">
+              Show a stress alert when{" "}
+              <span className="text-[#F6F1E8] font-semibold">{threshold}+</span>{" "}
               assignments are due in the next 14 days
             </p>
           </div>
-        </section>
+        </Section>
 
-        {/* ── Save ───────────────────────────────────────────────────── */}
-        <div className="mt-6 flex justify-end">
+        {/* ── Save ────────────────────────────────────────────────────────── */}
+        <div className="flex justify-end">
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm px-6 py-2.5 transition-colors"
+            className="rounded-xl bg-[#D6B36A] hover:bg-[#E0BF78] disabled:opacity-50 disabled:cursor-not-allowed text-[#0C111B] font-semibold text-sm px-6 py-2.5 transition-colors"
           >
             {isPending ? "Saving…" : "Save Settings"}
           </button>
         </div>
       </form>
 
-      {/* ── Pause Notifications ──────────────────────────────────────── */}
-      <section className="rounded-xl bg-slate-800 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-white font-semibold text-lg">
-            Pause Notifications
-          </h2>
+      {/* ── Pause Notifications ──────────────────────────────────────────── */}
+      <Section title="Pause Notifications">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[#AAB4C4] text-sm">
+            Temporarily silence all nudges
+          </p>
           <div className="flex items-center gap-3">
             {isPaused && (
-              <span className="text-xs text-amber-400 font-medium bg-amber-500/10 px-2.5 py-1 rounded-full">
+              <span className="text-xs text-[#D6B36A] font-medium bg-[#D6B36A]/10 px-2.5 py-1 rounded-full">
                 {pausedRemaining}m remaining
               </span>
             )}
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={pauseEnabled}
-                onChange={(e) => {
-                  const enabled = e.target.checked;
-                  setPauseEnabled(enabled);
-                  if (enabled) {
-                    handlePause(activeDuration);
-                  } else {
-                    handlePause(0);
-                  }
-                }}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-slate-600 rounded-full peer peer-checked:bg-indigo-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
-            </label>
+            <Toggle
+              checked={pauseEnabled}
+              onChange={(enabled) => {
+                setPauseEnabled(enabled);
+                if (enabled) {
+                  handlePause(activeDuration);
+                } else {
+                  handlePause(0);
+                }
+              }}
+            />
           </div>
         </div>
-        <p className="text-slate-400 text-sm mb-4">
-          Temporarily silence all nudges. Your preferences will resume
-          automatically.
-        </p>
+
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${
             pauseEnabled ? "max-h-20 opacity-100" : "max-h-0 opacity-0"
@@ -341,10 +372,10 @@ export default function SettingsForm({
                   setActiveDuration(opt.hours);
                   handlePause(opt.hours);
                 }}
-                className={`flex-1 rounded-lg border text-sm font-medium px-3 py-2.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`flex-1 rounded-xl border text-sm font-medium px-3 py-2.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
                   activeDuration === opt.hours
-                    ? "border-indigo-500 bg-indigo-500/20 text-indigo-200 shadow-sm shadow-indigo-500/20"
-                    : "border-slate-600 text-slate-400 bg-slate-700/30 hover:border-slate-500 hover:text-slate-300"
+                    ? "border-[#D6B36A]/40 bg-[#D6B36A]/12 text-[#D6B36A]"
+                    : "border-[#2A3444] text-[#7E8AA0] bg-[#1C2637]/50 hover:border-[#3A4454] hover:text-[#AAB4C4]"
                 }`}
               >
                 {opt.label}
@@ -352,7 +383,7 @@ export default function SettingsForm({
             ))}
           </div>
         </div>
-      </section>
+      </Section>
     </div>
   );
 }

@@ -44,13 +44,13 @@ export default function SyncNowButton({ userId }: Props) {
   }
 
   if (isSyncing) {
-    return <Skeleton className="h-9 w-28 rounded-md" />;
+    return <Skeleton className="h-9 w-24 rounded-xl bg-[#1C2637]" />;
   }
 
   return (
     <Button
       onClick={handleSync}
-      className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm"
+      className="bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] font-semibold text-sm rounded-xl shadow-none h-9 px-4"
     >
       Sync Now
     </Button>

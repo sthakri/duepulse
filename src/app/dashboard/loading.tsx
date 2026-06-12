@@ -1,35 +1,28 @@
 export default function DashboardLoading() {
   return (
-    <div className="bg-slate-900 min-h-screen">
-      <header className="border-b border-slate-700/50">
-        <div className="max-w-6xl mx-auto px-4 py-4 sm:px-6 flex items-center justify-between">
-          <span className="font-bold text-lg bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-            DuePulse
-          </span>
-          <div className="w-28 h-9 rounded-md bg-slate-800 animate-pulse" />
+    <>
+      {/* Topbar skeleton */}
+      <div className="border-b border-[#2A3444] bg-[#0C111B] h-[57px] px-5 flex items-center justify-between">
+        <div className="h-3 w-24 rounded bg-[#1C2637] animate-pulse hidden sm:block" />
+        <div className="flex items-center gap-3 ml-auto">
+          <div className="h-8 w-32 rounded-xl bg-[#151C2B] animate-pulse" />
+          <div className="h-8 w-24 rounded-xl bg-[#151C2B] animate-pulse" />
         </div>
-      </header>
-      <main className="max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="rounded-xl bg-slate-800 p-6 h-48 animate-pulse" />
-            <div className="rounded-xl bg-slate-800 p-6 h-64 animate-pulse" />
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="rounded-xl bg-slate-800 p-4 h-24 animate-pulse"
-                />
-              ))}
-            </div>
-          </div>
-          <div className="hidden lg:block space-y-6">
-            <div className="rounded-xl bg-slate-800 p-6 h-52 animate-pulse" />
-            <div className="rounded-xl bg-slate-800 p-6 h-40 animate-pulse" />
-            <div className="rounded-xl bg-slate-800 p-6 h-40 animate-pulse" />
+      </div>
+
+      {/* Content skeleton */}
+      <main className="flex-1 px-5 py-6 sm:px-6 sm:py-7 max-w-7xl w-full mx-auto">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          {/* Heatmap skeleton */}
+          <div className="xl:col-span-2 rounded-[18px] bg-[#151C2B] border border-[#2A3444] h-72 sm:h-80 animate-pulse" />
+
+          {/* Stats skeleton */}
+          <div className="xl:col-span-1 flex flex-col gap-4">
+            <div className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] h-64 animate-pulse" />
+            <div className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] h-16 animate-pulse" />
           </div>
         </div>
       </main>
-    </div>
+    </>
   );
 }

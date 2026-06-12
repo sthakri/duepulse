@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, Brain, Bell } from "lucide-react";
+import { BookOpen, Brain, Bell, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 
@@ -44,63 +44,85 @@ export default async function HomePage() {
 
   // Only unauthenticated users reach the JSX below.
   return (
-    <main className="flex flex-col flex-1 bg-slate-900">
+    <main className="flex flex-col flex-1 bg-[#0C111B]">
       {/* Sticky nav */}
-      <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/40">
-        <div className="max-w-6xl mx-auto px-4 py-3 sm:px-6 flex items-center justify-between">
-          <span className="font-bold text-lg bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-            DuePulse
-          </span>
+      <header className="sticky top-0 z-40 bg-[#0C111B]/90 backdrop-blur-sm border-b border-[#2A3444]/60">
+        <div className="max-w-6xl mx-auto px-5 py-3 sm:px-8 flex items-center justify-between">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="w-7 h-7 rounded-lg bg-[#D6B36A]/15 border border-[#D6B36A]/30 flex items-center justify-center">
+              <Zap size={14} className="text-[#D6B36A]" fill="#D6B36A" />
+            </div>
+            <span className="font-bold text-lg text-[#F6F1E8] tracking-tight">
+              DuePulse
+            </span>
+          </Link>
 
-          <div className="flex items-center gap-2">
-            <Button
-              asChild
-              variant="ghost"
-              className="text-slate-300 hover:text-white hover:bg-slate-800 text-sm h-9 px-4"
-            >
-              <Link href="/login">Sign In</Link>
-            </Button>
-            <Button
-              asChild
-              className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm h-9 px-4"
-            >
-              <Link href="/login">Sign Up</Link>
-            </Button>
-          </div>
+          {/* Nav links */}
+          <nav className="hidden md:flex items-center gap-6">
+            <Link href="/features" className="text-[#AAB4C4] hover:text-[#F6F1E8] text-sm transition-colors">
+              Features
+            </Link>
+            <Link href="/how-it-works" className="text-[#AAB4C4] hover:text-[#F6F1E8] text-sm transition-colors">
+              How it works
+            </Link>
+          </nav>
+
+          {/* CTA */}
+          <Button
+            asChild
+            className="bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] font-semibold text-sm h-9 px-4 rounded-xl shadow-none"
+          >
+            <Link href="/login">Get Started</Link>
+          </Button>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="flex flex-col items-center justify-center min-h-[calc(100vh-57px)] px-4 text-center">
-        <h1 className="text-white font-semibold text-4xl md:text-5xl max-w-2xl leading-tight">
-          Your deadlines, your brain, finally in sync.
+      <section className="flex flex-col items-center justify-center px-5 pt-20 pb-16 text-center max-w-3xl mx-auto">
+        {/* Eyebrow */}
+        <div className="inline-flex items-center gap-2 rounded-full border border-[#2A3444] bg-[#151C2B] px-4 py-1.5 mb-8">
+          <span className="text-[#D6B36A] text-xs">⚡</span>
+          <span className="text-[#AAB4C4] text-xs font-medium">For students, by a student</span>
+        </div>
+
+        <h1 className="text-[#F6F1E8] font-bold text-5xl md:text-6xl leading-[1.1] tracking-tight max-w-2xl mb-6">
+          Your deadlines, your brain,{" "}
+          <span className="text-[#D6B36A]">finally in sync.</span>
         </h1>
-        <p className="text-slate-300 text-lg mt-4 max-w-xl">
+
+        <p className="text-[#AAB4C4] text-lg max-w-xl leading-relaxed mb-10">
           DuePulse connects to Canvas LMS, learns when you actually focus, and
           nudges you at exactly the right moment.
         </p>
+
         <Button
           asChild
-          className="bg-indigo-500 hover:bg-indigo-600 text-white mt-8 px-6 py-3 text-base h-auto w-full sm:w-auto"
+          className="bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] font-semibold px-7 py-3 text-base h-auto rounded-xl shadow-none transition-all duration-200 hover:scale-[1.02]"
         >
           <Link href="/login">Connect Your Canvas →</Link>
         </Button>
       </section>
 
       {/* Feature cards */}
-      <section className="bg-slate-900 py-16 px-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <section id="features" className="py-16 px-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
           {features.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-xl bg-slate-800 p-4">
-              <Icon className="text-indigo-400 mb-3" size={24} />
-              <h2 className="text-white font-semibold text-lg">{title}</h2>
-              <p className="text-slate-300 text-base mt-1">{body}</p>
+            <div
+              key={title}
+              className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.25)] hover:border-[#D6B36A]/30 transition-colors duration-200"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#D6B36A]/10 border border-[#D6B36A]/20 flex items-center justify-center mb-4">
+                <Icon className="text-[#D6B36A]" size={18} />
+              </div>
+              <h2 className="text-[#F6F1E8] font-semibold text-base mb-2">{title}</h2>
+              <p className="text-[#AAB4C4] text-sm leading-relaxed">{body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <footer className="bg-slate-900 py-8 text-center text-slate-400 text-sm">
+      <footer className="py-8 text-center text-[#7E8AA0] text-sm border-t border-[#2A3444]/40">
         DuePulse — Built for students, by a student.
       </footer>
     </main>

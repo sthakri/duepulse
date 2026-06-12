@@ -174,7 +174,7 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
 
   if (state === "unsupported") {
     return (
-      <div className="text-slate-400 text-xs">
+      <div className="text-[#7E8AA0] text-xs">
         Notifications unavailable in this browser
       </div>
     );
@@ -182,7 +182,7 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
 
   if (state === "denied") {
     return (
-      <div className="text-slate-400 text-xs">
+      <div className="text-[#7E8AA0] text-xs">
         Notifications blocked — enable in browser settings
       </div>
     );
@@ -190,8 +190,8 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
 
   if (state === "subscribed") {
     return (
-      <span className="flex items-center gap-1.5 text-emerald-400 text-sm">
-        <CheckCircle size={16} />
+      <span className="flex items-center gap-1.5 text-[#7FAE9D] text-sm font-medium">
+        <CheckCircle size={15} />
         Nudges enabled
       </span>
     );
@@ -199,15 +199,15 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
 
   if (state === "requesting") {
     return (
-      <Button disabled>
-        <Skeleton className="h-4 w-24" />
+      <Button disabled className="bg-[#1C2637] border border-[#2A3444] text-[#AAB4C4] rounded-xl h-9 shadow-none">
+        <Skeleton className="h-4 w-24 bg-[#2A3444]" />
       </Button>
     );
   }
 
   return (
     <Button
-      className="bg-indigo-500 hover:bg-indigo-600 text-white"
+      className="bg-[#1C2637] hover:bg-[#252F42] border border-[#2A3444] text-[#AAB4C4] hover:text-[#F6F1E8] rounded-xl h-9 shadow-none text-sm font-medium"
       onClick={handleClick}
     >
       Enable Nudges
