@@ -8,9 +8,7 @@ import ProductiveWindowsChart from "@/components/ProductiveWindowsChart";
 import BehavioralInsightCard from "@/components/BehavioralInsightCard";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import TestNotifButton from "@/components/TestNotifButton";
-import Link from "next/link";
-import { LogOut, Settings } from "lucide-react";
-import RefreshButton from "@/components/RefreshButton";
+import UserMenu from "@/components/UserMenu";
 import MobileInstallGuide from "@/components/MobileInstallGuide";
 import { analyzeProductiveWindows } from "@/lib/ml";
 import { getLocalDate, getLocalHour, getLocalDay } from "@/lib/time";
@@ -25,13 +23,6 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
-
-  async function handleSignOut() {
-    "use server";
-    const s = await createClient();
-    await s.auth.signOut({ scope: "global" });
-    redirect("/");
-  }
 
   const userId = user.id;
 
@@ -132,37 +123,7 @@ export default async function DashboardPage() {
             DuePulse
           </span>
           <div className="flex items-center gap-2 sm:gap-4">
-            <details className="relative group">
-              <summary className="list-none cursor-pointer select-none w-9 h-9 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-semibold text-sm hover:bg-indigo-500/30 transition-colors">
-                {initial}
-              </summary>
-              <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-slate-800 border border-slate-700 shadow-2xl overflow-hidden z-50">
-                <div className="px-4 py-3 border-b border-slate-700">
-                  <p className="text-white text-sm font-medium truncate">
-                    {user.email}
-                  </p>
-                  <p className="text-slate-400 text-xs mt-0.5">
-                    Member since {memberSince}
-                  </p>
-                </div>
-                <Link
-                  href="/dashboard/settings"
-                  className="w-full flex items-center gap-2.5 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700/60 text-sm transition-colors"
-                >
-                  <Settings size={14} />
-                  Settings
-                </Link>
-                <form action={handleSignOut}>
-                  <button
-                    type="submit"
-                    className="w-full flex items-center gap-2.5 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700/60 text-sm transition-colors bg-transparent"
-                  >
-                    <LogOut size={14} />
-                    Sign out
-                  </button>
-                </form>
-              </div>
-            </details>
+            <UserMenu email={user.email ?? ""} memberSince={memberSince ?? ""} initial={initial ?? "?"} />
             <PushNotificationButton userId={userId} />
             {process.env.NODE_ENV === "development" && (
               <TestNotifButton userId={userId} />
@@ -170,7 +131,6 @@ export default async function DashboardPage() {
             {profile?.canvas_token && profile?.canvas_domain && (
               <SyncNowButton userId={userId} />
             )}
-            <RefreshButton />
           </div>
         </div>
       </header>
