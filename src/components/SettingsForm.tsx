@@ -167,8 +167,8 @@ export default function SettingsForm({
         <Section title="Nudge Frequency">
           <div className="flex flex-col gap-3">
             {FREQUENCIES.map((opt) => (
-              <label key={opt.value} className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${frequency === opt.value ? "border-[#6366F1]/40 bg-[#6366F1]/8" : "border-[#334155] bg-[#243044]/50 hover:bg-[#243044]"}`}>
-                <input type="radio" name="nudge_frequency" value={opt.value} checked={frequency === opt.value} onChange={(e) => setFrequency(e.target.value)} className="mt-0.5" style={{ accentColor: "#6366F1" }} />
+              <label key={opt.value} onClick={() => setFrequency(opt.value)} className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${frequency === opt.value ? "border-[#6366F1]/40 bg-[#6366F1]/8" : "border-[#334155] bg-[#243044]/50 hover:bg-[#243044]"}`}>
+                <input type="radio" name="nudge_frequency" value={opt.value} checked={frequency === opt.value} readOnly className="mt-0.5" style={{ accentColor: "#6366F1" }} />
                 <div>
                   <p className={`text-sm font-medium ${frequency === opt.value ? "text-[#818CF8]" : "text-[#F8FAFC]"}`}>{opt.label}</p>
                   <p className="text-[#64748B] text-xs mt-0.5">{opt.desc}</p>
