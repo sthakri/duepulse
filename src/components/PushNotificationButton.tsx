@@ -30,18 +30,33 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
     if (!("Notification" in window)) return;
     if (Notification.permission !== "granted") return;
     if (!("serviceWorker" in navigator)) return;
+    let mounted = true;
     navigator.serviceWorker.getRegistration("/")
-      .then((reg) => reg?.pushManager.getSubscription() ?? null)
-      .then(async (sub) => {
-        if (!sub) { setState("idle"); return; }
+      .then(async (reg) => {
+        if (!reg || !mounted) return;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) { if (mounted) setState("idle"); return; }
         const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
         try {
           const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth }) });
           if (!res.ok) console.warn("push re-association failed:", res.status);
         } catch (err) { console.warn("push re-association error:", err); }
-        setState("subscribed");
+        if (mounted) setState("subscribed");
+
+        // Auto-renew when push subscription expires (browser fires this event).
+        reg.addEventListener("pushsubscriptionchange", async () => {
+          try {
+            const vapidKey = urlBase64ToUint8Array(env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+            if (vapidKey.length !== 65 || vapidKey[0] !== 0x04) return;
+            const newSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey as unknown as ArrayBuffer });
+            const { endpoint, keys } = newSub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+            const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint, p256dh: keys.p256dh, auth: keys.auth }) });
+            if (res.ok && mounted) setState("subscribed");
+          } catch {}
+        });
       })
-      .catch(() => setState("idle"));
+      .catch(() => { if (mounted) setState("idle"); });
+    return () => { mounted = false; };
   }, [userId]);
 
   async function handleClick() {
