@@ -28,7 +28,6 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Authenticated users never see the landing page — redirect immediately.
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -42,28 +41,33 @@ export default async function HomePage() {
     redirect("/onboarding");
   }
 
-  // Only unauthenticated users reach the JSX below.
   return (
-    <main className="flex flex-col flex-1 bg-[#0C111B]">
-      {/* Sticky nav */}
-      <header className="sticky top-0 z-40 bg-[#0C111B]/90 backdrop-blur-sm border-b border-[#2A3444]/60">
+    <main className="flex flex-col flex-1 min-h-screen bg-[radial-gradient(circle_at_top,#111C33_0%,#0F172A_45%,#08111F_100%)] text-[#F8FAFC]">
+      {/* ── Sticky nav ──────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 border-b border-[#334155]/60 bg-[#08111F]/80 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-5 py-3 sm:px-8 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-7 h-7 rounded-lg bg-[#D6B36A]/15 border border-[#D6B36A]/30 flex items-center justify-center">
-              <Zap size={14} className="text-[#D6B36A]" fill="#D6B36A" />
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#6366F1]/40 bg-[#6366F1]/15 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+              <Zap size={15} className="text-[#818CF8]" fill="#818CF8" />
             </div>
-            <span className="font-bold text-lg text-[#F6F1E8] tracking-tight">
+            <span className="font-bold text-lg text-[#F8FAFC] tracking-tight">
               DuePulse
             </span>
           </Link>
 
-          {/* Nav links */}
+          {/* Nav */}
           <nav className="hidden md:flex items-center gap-6">
-            <Link href="/features" className="text-[#AAB4C4] hover:text-[#F6F1E8] text-sm transition-colors">
+            <Link
+              href="/features"
+              className="text-[#94A3B8] hover:text-[#F8FAFC] text-sm transition-colors"
+            >
               Features
             </Link>
-            <Link href="/how-it-works" className="text-[#AAB4C4] hover:text-[#F6F1E8] text-sm transition-colors">
+            <Link
+              href="/how-it-works"
+              className="text-[#94A3B8] hover:text-[#F8FAFC] text-sm transition-colors"
+            >
               How it works
             </Link>
           </nav>
@@ -71,59 +75,66 @@ export default async function HomePage() {
           {/* CTA */}
           <Button
             asChild
-            className="bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] font-semibold text-sm h-9 px-4 rounded-xl shadow-none"
+            className="bg-[#6366F1] hover:bg-[#818CF8] text-white font-semibold text-sm h-9 px-4 rounded-xl shadow-[0_8px_25px_rgba(99,102,241,0.35)] transition-all duration-200"
           >
             <Link href="/login">Get Started</Link>
           </Button>
         </div>
       </header>
 
-      {/* Hero */}
+      {/* ── Hero ────────────────────────────────────────────────────────────── */}
       <section className="flex flex-col items-center justify-center px-5 pt-20 pb-16 text-center max-w-3xl mx-auto">
         {/* Eyebrow */}
-        <div className="inline-flex items-center gap-2 rounded-full border border-[#2A3444] bg-[#151C2B] px-4 py-1.5 mb-8">
-          <span className="text-[#D6B36A] text-xs">⚡</span>
-          <span className="text-[#AAB4C4] text-xs font-medium">For students, by a student</span>
+        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#6366F1]/40 bg-[#6366F1]/10 px-4 py-1.5 text-sm font-medium text-[#CBD5E1]">
+          <Zap size={13} className="text-[#818CF8]" />
+          For students, by a student
         </div>
 
-        <h1 className="text-[#F6F1E8] font-bold text-5xl md:text-6xl leading-[1.1] tracking-tight max-w-2xl mb-6">
+        <h1 className="text-[#F8FAFC] font-extrabold text-5xl md:text-6xl leading-[1.05] tracking-tight max-w-2xl mb-5">
           Your deadlines, your brain,{" "}
-          <span className="text-[#D6B36A]">finally in sync.</span>
+          <span className="text-[#6366F1]">finally in sync.</span>
         </h1>
 
-        <p className="text-[#AAB4C4] text-lg max-w-xl leading-relaxed mb-10">
+        <p className="text-[#CBD5E1] text-lg max-w-xl leading-relaxed mb-10">
           DuePulse connects to Canvas LMS, learns when you actually focus, and
           nudges you at exactly the right moment.
         </p>
 
         <Button
           asChild
-          className="bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] font-semibold px-7 py-3 text-base h-auto rounded-xl shadow-none transition-all duration-200 hover:scale-[1.02]"
+          className="bg-[#6366F1] hover:bg-[#818CF8] text-white font-semibold px-7 py-3 text-base h-auto rounded-xl shadow-[0_12px_35px_rgba(99,102,241,0.35)] transition-all duration-200 hover:scale-[1.02]"
         >
           <Link href="/login">Connect Your Canvas →</Link>
         </Button>
       </section>
 
-      {/* Feature cards */}
+      {/* ── Feature cards ───────────────────────────────────────────────────── */}
       <section id="features" className="py-16 px-5">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
           {features.map(({ icon: Icon, title, body }) => (
             <div
               key={title}
-              className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.25)] hover:border-[#D6B36A]/30 transition-colors duration-200"
+              className="rounded-[18px] bg-[#1E293B]/80 border border-[#334155]/70 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.25)] hover:border-[#6366F1]/40 hover:bg-[#243044]/80 transition-all duration-200"
             >
-              <div className="w-10 h-10 rounded-xl bg-[#D6B36A]/10 border border-[#D6B36A]/20 flex items-center justify-center mb-4">
-                <Icon className="text-[#D6B36A]" size={18} />
+              <div className="w-10 h-10 rounded-xl bg-[#6366F1]/10 border border-[#6366F1]/20 flex items-center justify-center mb-4">
+                <Icon className="text-[#818CF8]" size={18} />
               </div>
-              <h2 className="text-[#F6F1E8] font-semibold text-base mb-2">{title}</h2>
-              <p className="text-[#AAB4C4] text-sm leading-relaxed">{body}</p>
+              <h2 className="text-[#F8FAFC] font-semibold text-base mb-2">
+                {title}
+              </h2>
+              <p className="text-[#94A3B8] text-sm leading-relaxed">{body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <footer className="py-8 text-center text-[#7E8AA0] text-sm border-t border-[#2A3444]/40">
-        DuePulse — Built for students, by a student.
+      <footer className="py-8 text-center border-t border-[#334155]/40 mt-auto">
+        <p className="text-[#94A3B8] text-sm">
+          <Link href="/" className="text-[#6366F1] hover:text-[#818CF8] transition-colors">
+            DuePulse
+          </Link>{" "}
+          — Built for students, by a student.
+        </p>
       </footer>
     </main>
   );

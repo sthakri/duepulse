@@ -23,7 +23,7 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#D6B36A" />
+        <meta name="theme-color" content="#6366F1" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
           name="apple-mobile-web-app-status-bar-style"
@@ -31,7 +31,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${manrope.variable} font-sans min-h-full flex flex-col bg-[#0C111B]`}
+        className={`${manrope.variable} font-sans min-h-full flex flex-col bg-[#0F172A]`}
       >
         <MobileBrowserGate />
         {children}

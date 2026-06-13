@@ -44,56 +44,40 @@ export default function DashboardError({
     const osName = platform === "ios" ? "iOS" : "Android";
 
     return (
-      <div className="flex-1 bg-[#0C111B] flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center p-6">
         <div className="text-center max-w-sm w-full">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#D6B36A]/10 border border-[#D6B36A]/20 mb-6">
-            <Smartphone className="text-[#D6B36A] w-8 h-8" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#6366F1]/10 border border-[#6366F1]/20 mb-6">
+            <Smartphone className="text-[#818CF8] w-8 h-8" />
           </div>
-
-          <h1 className="text-[#F6F1E8] font-bold text-2xl mb-2">
-            Add DuePulse to your Home Screen
-          </h1>
-          <p className="text-[#AAB4C4] text-sm mb-8 leading-relaxed">
-            DuePulse works best as a standalone app on {osName}.
-            <br />
+          <h1 className="text-[#F8FAFC] font-bold text-2xl mb-2">Add DuePulse to your Home Screen</h1>
+          <p className="text-[#94A3B8] text-sm mb-8 leading-relaxed">
+            DuePulse works best as a standalone app on {osName}.<br />
             Follow the steps below to install it.
           </p>
 
           <div className="text-left space-y-5 mb-8">
             {steps.map((s, i) => (
               <div key={i} className="flex items-start gap-3">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#1C2637] border border-[#2A3444] text-[#AAB4C4] text-xs font-bold shrink-0 mt-0.5">
-                  {i + 1}
-                </span>
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#243044] border border-[#334155] text-[#94A3B8] text-xs font-bold shrink-0 mt-0.5">{i + 1}</span>
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <s.icon className="text-[#D6B36A] w-5 h-5 shrink-0" />
-                  <p className="text-[#AAB4C4] text-sm leading-snug text-left">
-                    {s.label}
-                  </p>
+                  <s.icon className="text-[#818CF8] w-5 h-5 shrink-0" />
+                  <p className="text-[#94A3B8] text-sm leading-snug text-left">{s.label}</p>
                 </div>
               </div>
             ))}
           </div>
 
-          <button
-            onClick={() => {
-              setDismissed(true);
-              reset();
-            }}
-            className="rounded-xl bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] px-6 py-3 text-base font-semibold transition-colors w-full"
-          >
+          <button onClick={() => { setDismissed(true); reset(); }}
+            className="rounded-xl bg-[#6366F1] hover:bg-[#818CF8] text-white px-6 py-3 text-base font-semibold transition-colors w-full shadow-[0_8px_25px_rgba(99,102,241,0.25)]">
             Try Again
           </button>
 
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="mt-4 text-[#7E8AA0] hover:text-[#AAB4C4] text-xs transition-colors bg-transparent"
-          >
+          <button onClick={() => setShowDetails(!showDetails)} className="mt-4 text-[#64748B] hover:text-[#94A3B8] text-xs transition-colors bg-transparent">
             {showDetails ? "Hide technical details" : "Show technical details"}
           </button>
 
           {showDetails && (
-            <p className="mt-3 text-[#C97064] text-xs font-mono bg-[#151C2B] border border-[#2A3444] rounded-xl p-3 text-left break-all max-h-32 overflow-y-auto">
+            <p className="mt-3 text-[#EF4444] text-xs font-mono bg-[#1E293B] border border-[#334155] rounded-xl p-3 text-left break-all max-h-32 overflow-y-auto">
               {error.message}
             </p>
           )}
@@ -105,20 +89,15 @@ export default function DashboardError({
   return (
     <div className="flex-1 flex items-center justify-center p-4">
       <div className="text-center max-w-md">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#D6B36A]/10 border border-[#D6B36A]/20 mb-6">
-          <Zap className="text-[#D6B36A] w-8 h-8" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#6366F1]/10 border border-[#6366F1]/20 mb-6">
+          <Zap className="text-[#818CF8] w-8 h-8" />
         </div>
-        <h1 className="text-[#F6F1E8] font-bold text-2xl mb-3">
-          Something went wrong
-        </h1>
-        <p className="text-[#AAB4C4] text-base mb-6">
-          Couldn&apos;t load your dashboard. This usually happens after a fresh
-          sign-in — try reloading.
+        <h1 className="text-[#F8FAFC] font-bold text-2xl mb-3">Something went wrong</h1>
+        <p className="text-[#94A3B8] text-base mb-6">
+          Couldn&apos;t load your dashboard. This usually happens after a fresh sign-in — try reloading.
         </p>
-        <button
-          onClick={reset}
-          className="rounded-xl bg-[#D6B36A] hover:bg-[#E0BF78] text-[#0C111B] px-6 py-3 text-base font-semibold transition-colors"
-        >
+        <button onClick={reset}
+          className="rounded-xl bg-[#6366F1] hover:bg-[#818CF8] text-white px-6 py-3 text-base font-semibold transition-colors shadow-[0_8px_25px_rgba(99,102,241,0.25)]">
           Try Again
         </button>
       </div>

@@ -54,9 +54,10 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
 
     const counts = Array.from(countMap.values());
     const maxDomain = counts.length > 0 ? Math.max(5, ...counts) : 5;
-    // Color scale: dark charcoal (empty) → clay red (heavy)
+
+    // Color scale: empty navy → heavy indigo (Midnight Sync palette)
     const colorScale = d3
-      .scaleSequential(d3.interpolateRgb("#1C2637", "#C97064"))
+      .scaleSequential(d3.interpolateRgb("#243044", "#6366F1"))
       .domain([0, maxDomain]);
 
     const now = new Date();
@@ -89,6 +90,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
         .attr("viewBox", `0 0 ${contentWidth} ${svgHeight}`)
         .attr("width", "100%");
 
+      // Day-of-week labels
       svgSel
         .selectAll<SVGTextElement, string>("text.dy")
         .data(["M", "T", "W", "T", "F", "S", "S"])
@@ -97,10 +99,11 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
         .attr("x", marginLeft - 8)
         .attr("y", (_, i) => marginTop + i * step + cellSize / 2 + 4)
         .attr("text-anchor", "end")
-        .attr("fill", "#7E8AA0")
+        .attr("fill", "#64748B")
         .attr("font-size", "10px")
         .text((l) => l);
 
+      // Week-start labels
       svgSel
         .selectAll<SVGTextElement, Date>("text.wk")
         .data(weekStarts)
@@ -112,7 +115,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
             `translate(${marginLeft + i * step + cellSize / 2}, ${marginTop + gridH + 8}) rotate(-45)`,
         )
         .attr("text-anchor", "end")
-        .attr("fill", "#7E8AA0")
+        .attr("fill", "#64748B")
         .attr("font-size", "10px")
         .text((d) => fmtShort(d));
 
@@ -130,7 +133,7 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
         .attr("height", cellSize)
         .attr("rx", 5)
         .attr("fill", (d) => colorScale(countMap.get(d.dateStr) ?? 0))
-        .attr("stroke", (d) => (d.dateStr === todayStr ? "#D6B36A" : "#2A3444"))
+        .attr("stroke", (d) => (d.dateStr === todayStr ? "#818CF8" : "#334155"))
         .attr("stroke-width", (d) => (d.dateStr === todayStr ? 2 : 0.5));
 
       cellGroups.append("title").text((d) => {
@@ -153,25 +156,14 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
           return n > 0 ? String(n) : "";
         });
 
+      // Legend
       const legendY = marginTop + gridH + xAxisHeight + 10;
       const swatchSize = 14;
       const swatchGap = 4;
-      const legendDomain = [
-        0,
-        maxDomain * 0.25,
-        maxDomain * 0.5,
-        maxDomain * 0.75,
-        maxDomain,
-      ];
+      const legendDomain = [0, maxDomain * 0.25, maxDomain * 0.5, maxDomain * 0.75, maxDomain];
       const swatchStartX = marginLeft + 26;
 
-      svgSel
-        .append("text")
-        .attr("x", marginLeft)
-        .attr("y", legendY + swatchSize - 1)
-        .attr("fill", "#7E8AA0")
-        .attr("font-size", "11px")
-        .text("Low");
+      svgSel.append("text").attr("x", marginLeft).attr("y", legendY + swatchSize - 1).attr("fill", "#64748B").attr("font-size", "11px").text("Low");
 
       svgSel
         .selectAll<SVGRectElement, number>("rect.ls")
@@ -187,12 +179,9 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
 
       svgSel
         .append("text")
-        .attr(
-          "x",
-          swatchStartX + legendDomain.length * (swatchSize + swatchGap),
-        )
+        .attr("x", swatchStartX + legendDomain.length * (swatchSize + swatchGap))
         .attr("y", legendY + swatchSize - 1)
-        .attr("fill", "#7E8AA0")
+        .attr("fill", "#64748B")
         .attr("font-size", "11px")
         .text("High");
     }
@@ -205,9 +194,9 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
   }, [data, userTz]);
 
   return (
-    <div className="rounded-[18px] bg-[#151C2B] border border-[#2A3444] p-5 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+    <div className="rounded-[18px] bg-[#1E293B]/80 border border-[#334155]/70 p-5 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
       <div className="mb-4">
-        <p className="text-[#F6F1E8] font-semibold text-base">
+        <p className="text-[#F8FAFC] font-semibold text-base">
           Workload — Next 6 Weeks
         </p>
       </div>

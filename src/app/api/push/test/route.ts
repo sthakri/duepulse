@@ -6,10 +6,6 @@ import { sendPushNotification } from "@/lib/webpush";
 import webpush from "web-push";
 
 export async function POST(req: NextRequest) {
-  if (process.env.NODE_ENV !== 'development') {
-    return NextResponse.json({}, { status: 404 });
-  }
-
   const body: unknown = await req.json();
 
   if (

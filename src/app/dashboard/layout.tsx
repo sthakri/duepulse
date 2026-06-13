@@ -17,7 +17,7 @@ export default async function DashboardLayout({
   const initial = user.email?.charAt(0).toUpperCase() ?? "?";
 
   return (
-    <div className="bg-[#0C111B] min-h-screen flex">
+    <div className="bg-[#0F172A] min-h-screen flex">
       <DashboardSidebar email={user.email ?? ""} initial={initial} />
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         {children}
