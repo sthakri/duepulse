@@ -60,6 +60,14 @@ next-env.d.ts
 .trigger
 DEPLOYMENT.md
 
+# Internal agent/coding docs — not for public repo
+/AGENTS.md
+/CLAUDE.md
+/docs/
+/.github/instructions/
+/.github/prompts/
+
 # PWA service worker build artifacts (auto-generated on build)
 public/sw.js
 public/worker-*.js
+public/workbox-*.js

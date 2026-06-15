@@ -30,6 +30,74 @@ Canvas API → Supabase DB → Nudge Engine (Trigger.dev) → Web Push
 
 Next.js 16 · React 19 · TypeScript (strict) · Tailwind CSS 4 · Supabase (Postgres + Auth + RLS) · D3.js · NVIDIA NIM (Mistral Large) · Web Push API · Zustand · Trigger.dev · Upstash Redis
 
+## Project Structure
+
+```
+duepulse/
+├── public/                    # Static assets
+│   ├── icons/                 # PWA install icons
+│   └── manifest.json          # PWA manifest
+├── src/
+│   ├── app/                   # Next.js App Router
+│   │   ├── (auth)/            # Login + onboarding pages
+│   │   ├── api/               # Backend API routes
+│   │   │   ├── canvas/        # Canvas LMS sync + test
+│   │   │   ├── nudge/         # AI nudge generation (dev)
+│   │   │   ├── push/          # Web Push subscribe + test
+│   │   │   └── stress/        # Workload stress prediction
+│   │   ├── auth/              # Supabase auth callback
+│   │   ├── dashboard/         # Main app: assignments, insights, settings
+│   │   ├── features/          # Marketing: features page
+│   │   ├── how-it-works/      # Marketing: how it works
+│   │   ├── install/           # PWA install guide
+│   │   ├── actions.ts         # Server actions
+│   │   ├── globals.css        # Tailwind + design tokens
+│   │   ├── layout.tsx         # Root layout + PWA meta
+│   │   └── page.tsx           # Landing page
+│   ├── components/
+│   │   ├── ui/                # shadcn/ui primitives (button, card, input, etc.)
+│   │   ├── AssignmentCard.tsx
+│   │   ├── AssignmentsClient.tsx
+│   │   ├── AutoSync.tsx
+│   │   ├── BehavioralInsightCard.tsx
+│   │   ├── DashboardSidebar.tsx
+│   │   ├── MobileBrowserGate.tsx
+│   │   ├── MobileInstallGuide.tsx
+│   │   ├── OnboardingWizard.tsx
+│   │   ├── ProductiveWindowsChart.tsx  # D3 bar chart
+│   │   ├── PushNotificationButton.tsx
+│   │   ├── SettingsForm.tsx
+│   │   ├── StressAlert.tsx
+│   │   ├── SyncNowButton.tsx
+│   │   ├── TestNotifButton.tsx
+│   │   └── WorkloadHeatmap.tsx         # D3 heatmap grid
+│   ├── lib/                   # Business logic
+│   │   ├── supabase/          # Server + browser DB clients
+│   │   ├── canvas.ts          # Canvas API wrapper
+│   │   ├── env.ts             # Zod-validated env vars
+│   │   ├── ml.ts              # Focus pattern detection
+│   │   ├── nim.ts             # NVIDIA NIM AI client
+│   │   ├── store.ts           # Zustand global state
+│   │   ├── time.ts            # Timezone utilities
+│   │   ├── utils.ts           # Shared helpers
+│   │   └── webpush.ts         # Web Push sender
+│   ├── trigger/
+│   │   └── nudge-engine.ts    # Trigger.dev hourly job
+│   └── database.types.ts      # Supabase typegen
+├── supabase/
+│   └── schema.sql             # Full schema + RLS policies
+├── worker/
+│   └── index.js               # Push notification event handler
+├── trigger.config.ts
+├── next.config.ts
+├── vercel.json
+├── tsconfig.json
+├── eslint.config.mjs
+├── postcss.config.mjs
+├── components.json            # shadcn/ui config
+└── package.json
+```
+
 ## Getting Started
 
 ```bash
@@ -38,9 +106,7 @@ cd duepulse
 npm install
 ```
 
-Create `.env.local` with your credentials (Supabase, Canvas token, NVIDIA NIM key, VAPID keys, Upstash Redis, Trigger.dev). See [docs/setup.md](docs/setup.md) for full details.
-
-Run `supabase/schema.sql` in your Supabase SQL editor, then:
+Set up environment variables (Supabase URL + keys, Canvas token, NVIDIA NIM key, VAPID keys, Upstash Redis, Trigger.dev). Then run `supabase/schema.sql` in your Supabase SQL editor to create all tables and RLS policies.
 
 ```bash
 npm run dev
@@ -56,19 +122,3 @@ Open `http://localhost:3000`.
 | `npm run build` | Production build |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
-
-## Project Structure
-
-```
-src/
-├── app/             # Next.js App Router (pages + API routes)
-│   ├── api/         # Backend endpoints (sync, push, nudge)
-│   └── dashboard/   # Main app pages
-├── components/      # React components (charts, forms, buttons)
-├── lib/             # Business logic (Supabase clients, AI, store)
-└── trigger/         # Trigger.dev background job
-```
-
-## Deploy
-
-Connect your fork to Vercel, set env vars, then deploy the Trigger.dev job (`npx trigger.dev@latest deploy`) and set `NUDGE_ENABLED=true`.
