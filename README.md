@@ -1,67 +1,80 @@
 # DuePulse
 
-Canvas-synced student assignment planner with AI-generated push nudges and D3 workload visualizations.
+A smart assignment planner for students who use Canvas LMS. DuePulse syncs your Canvas assignments, learns when you're most productive, and sends AI-generated push notifications to keep you on track — without the noise.
 
-## Features
+## What It Does
 
-- **Canvas Sync** — Pulls assignments and due dates from Canvas LMS
-- **AI Nudges** — NVIDIA NIM + Mistral Large generates friendly push notification reminders
-- **Smart Timing** — Learns your productive windows and nudges when you're likely to act
-- **Workload Charts** — D3 heatmap and productive windows visualization
-- **Push Notifications** — Cross-browser Web Push with VAPID auth
-- **PWA** — Installable on mobile, works offline
-- **Background Jobs** — Trigger.dev hourly nudge engine
+Most assignment trackers just show a list of due dates. DuePulse goes further:
 
-## Stack
+- **Syncs with Canvas** — Connect your Canvas account once. Assignments, due dates, and course info are pulled automatically.
+- **Tracks your focus patterns** — Every time you open DuePulse, it records when you're studying. Over time it builds a model of your productive windows.
+- **Sends smart nudges** — Using NVIDIA NIM + Mistral Large, it generates friendly, personalized push notifications at the right time. Not spam — just a gentle "hey, that calc assignment is due tonight" when you're likely to act on it.
+- **Shows your workload visually** — D3-based heatmaps and charts help you see busy weeks at a glance.
+- **Works as a PWA** — Install it on your phone or desktop. Works offline.
 
-Next.js 16 · React 19 · TypeScript strict · Tailwind 4 · Supabase (Postgres + Auth) · D3.js · Zustand · Trigger.dev · Upstash Redis · NVIDIA NIM · Zod
+## How It Works
 
-## Quick Start
+```
+Canvas API → Supabase DB → Nudge Engine (Trigger.dev) → Web Push
+                ↓
+          D3 Charts & Dashboard
+```
+
+1. You connect your Canvas account during onboarding.
+2. DuePulse fetches your courses and assignments via the Canvas API.
+3. Every time you visit, your productive window data is recorded.
+4. A background job (Trigger.dev) runs hourly — it checks deadlines, your focus patterns, and sends AI-generated nudges when appropriate.
+5. You see everything on a dashboard with workload heatmaps and insights.
+
+## Built With
+
+Next.js 16 · React 19 · TypeScript (strict) · Tailwind CSS 4 · Supabase (Postgres + Auth + RLS) · D3.js · NVIDIA NIM (Mistral Large) · Web Push API · Zustand · Trigger.dev · Upstash Redis
+
+## Getting Started
 
 ```bash
 git clone https://github.com/sthakri/duepulse.git
 cd duepulse
 npm install
+```
+
+Create `.env.local` with your credentials (Supabase, Canvas token, NVIDIA NIM key, VAPID keys, Upstash Redis, Trigger.dev). See [docs/setup.md](docs/setup.md) for full details.
+
+Run `supabase/schema.sql` in your Supabase SQL editor, then:
+
+```bash
 npm run dev
 ```
 
-### Environment Variables
+Open `http://localhost:3000`.
 
-Create `.env.local` in the project root. Key ones:
-
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key |
-| `VAPID_PRIVATE_KEY` | VAPID private key |
-| `CANVAS_PERSONAL_TOKEN` | Canvas API token |
-| `CANVAS_DOMAIN` | e.g. `txstate.instructure.com` |
-| `NIM_API_KEY` | NVIDIA NIM API key |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
-| `TRIGGER_SECRET_KEY` | Trigger.dev project key |
-| `NUDGE_ENABLED` | `"true"` to enable nudge engine |
-
-Run `npm run dev` and open `http://localhost:3000`.
-
-### Database
-
-Run `supabase/schema.sql` in your Supabase SQL editor to create all tables, RLS policies, and indexes.
-
-## Commands
+### Commands
 
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Start dev server (webpack) |
-| `npm run build` | Production build (webpack) |
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
 
+## Project Structure
+
+```
+src/
+├── app/             # Next.js App Router (pages + API routes)
+│   ├── api/         # Backend endpoints (sync, push, nudge)
+│   └── dashboard/   # Main app pages
+├── components/      # React components (charts, forms, buttons)
+├── lib/             # Business logic (Supabase clients, AI, store)
+└── trigger/         # Trigger.dev background job
+```
+
 ## Deploy
 
-1. Push to GitHub and connect to Vercel
-2. Set all env vars in Vercel Dashboard
-3. Deploy Trigger.dev jobs: `npx trigger.dev@latest deploy`
-4. Set `NUDGE_ENABLED=true` and enable the Trigger.dev schedule
+Push to GitHub, connect to Vercel, set environment variables, and deploy the Trigger.dev job:
+
+```bash
+npx trigger.dev@latest deploy
+```
+
+Set `NUDGE_ENABLED=true` in Vercel and enable the Trigger.dev schedule.
