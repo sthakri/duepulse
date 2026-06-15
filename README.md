@@ -71,10 +71,4 @@ src/
 
 ## Deploy
 
-Push to GitHub, connect to Vercel, set environment variables, and deploy the Trigger.dev job:
-
-```bash
-npx trigger.dev@latest deploy
-```
-
-Set `NUDGE_ENABLED=true` in Vercel and enable the Trigger.dev schedule.
+Connect your fork to Vercel, set env vars, then deploy the Trigger.dev job (`npx trigger.dev@latest deploy`) and set `NUDGE_ENABLED=true`.
