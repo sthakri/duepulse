@@ -85,9 +85,8 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
       const { endpoint, keys } = subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
 
       const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint, p256dh: keys.p256dh, auth: keys.auth }) });
-      if (!res.ok) toast.warning("Subscription saved locally — server sync will retry");
-      else toast.success("Nudges enabled");
-      setState("subscribed");
+      if (!res.ok) { toast.warning("Subscription saved locally - server sync will retry"); setState("idle"); }
+      else { toast.success("Nudges enabled"); setState("subscribed"); }
     } catch (err) { console.error(err); toast.error("Failed to enable notifications"); setState("idle"); }
   }
 

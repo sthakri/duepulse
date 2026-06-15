@@ -36,6 +36,7 @@ export default function DashboardSidebar({
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   // Persist collapse preference
   useEffect(() => {
@@ -52,7 +53,7 @@ export default function DashboardSidebar({
   }
 
   async function handleSignOut() {
-    await createClient().auth.signOut({ scope: "global" });
+    await createClient().auth.signOut({ scope: "local" });
     router.push("/");
   }
 
@@ -132,7 +133,7 @@ export default function DashboardSidebar({
                 </div>
               )}
               <div className="p-3">
-                <button type="button" onClick={handleSignOut}
+                <button type="button" onClick={() => { setMobileOpen(false); setShowSignOutConfirm(true); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#94A3B8] hover:bg-[#1E293B] hover:text-[#EF4444] transition-colors bg-transparent border border-transparent">
                   <LogOut size={17} />
                   <span>Sign out</span>
@@ -204,7 +205,7 @@ export default function DashboardSidebar({
           <div className="p-2">
             <button
               type="button"
-              onClick={handleSignOut}
+              onClick={() => setShowSignOutConfirm(true)}
               className={[
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#64748B] hover:bg-[#1E293B] hover:text-[#EF4444] transition-colors bg-transparent border border-transparent",
                 collapsed ? "justify-center" : "",
@@ -217,6 +218,26 @@ export default function DashboardSidebar({
           </div>
         </div>
       </aside>
+      {/* Sign-out confirmation modal */}
+      {showSignOutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#0F172A]/70 backdrop-blur-sm" onClick={() => setShowSignOutConfirm(false)} />
+          <div className="relative w-full max-w-sm rounded-[18px] bg-[#1E293B] border border-[#334155]/70 p-6 shadow-2xl">
+            <h3 className="text-[#F8FAFC] font-semibold text-base mb-2">Sign out</h3>
+            <p className="text-[#94A3B8] text-sm mb-6">Are you sure you want to sign out? You can sign back in anytime.</p>
+            <div className="flex items-center gap-3 justify-end">
+              <button type="button" onClick={() => setShowSignOutConfirm(false)}
+                className="rounded-xl border border-[#334155] bg-[#0F172A] text-[#94A3B8] hover:text-[#F8FAFC] text-sm font-medium px-4 py-2 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={handleSignOut}
+                className="rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white text-sm font-medium px-4 py-2 transition-colors">
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

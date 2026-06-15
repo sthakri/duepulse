@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { env } from "@/lib/env";
 import { Database } from "@/database.types";
 import { sendPushNotification } from "@/lib/webpush";
+import webpush from "web-push";
 
 export async function POST(req: NextRequest) {
   const body: unknown = await req.json();
@@ -24,34 +25,48 @@ export async function POST(req: NextRequest) {
     { cookies: { getAll: () => [], setAll: () => {} } }
   );
 
-  const { data: sub } = await serviceClient
+  const { data: subs } = await serviceClient
     .from("push_subscriptions")
     .select("endpoint, p256dh, auth")
-    .eq("user_id", userId)
-    .maybeSingle();
+    .eq("user_id", userId);
 
-  if (!sub) {
-    return NextResponse.json({ error: "No subscription found — enable notifications first" }, { status: 404 });
+  if (!subs || subs.length === 0) {
+    return NextResponse.json({ error: "No subscription found - enable notifications first" }, { status: 404 });
   }
 
-  const subscription = {
-    endpoint: sub.endpoint,
-    keys: { p256dh: sub.p256dh, auth: sub.auth },
-  };
+  const results: string[] = [];
+  let anySent = false;
 
-  try {
-    await sendPushNotification(subscription, "Push notifications are working!");
-    return NextResponse.json({ success: true });
-  } catch (err: unknown) {
-    console.error("Push test error:", err);
-    const statusCode = (err as { statusCode?: number })?.statusCode;
-    if (statusCode === 410 || statusCode === 404) {
-      await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+  for (const sub of subs) {
+    const subscription: webpush.PushSubscription = {
+      endpoint: sub.endpoint,
+      keys: { p256dh: sub.p256dh, auth: sub.auth },
+    };
+    try {
+      await sendPushNotification(subscription, "Push notifications are working!");
+      results.push("sent");
+      anySent = true;
+    } catch (err: unknown) {
+      const statusCode = (err as { statusCode?: number })?.statusCode;
+      if (statusCode === 410 || statusCode === 404) {
+        await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+        results.push("expired");
+      } else {
+        results.push("error");
+      }
+    }
+  }
+
+  if (!anySent) {
+    const hasExpired = results.some((r) => r === "expired");
+    if (hasExpired) {
       return NextResponse.json(
-        { error: "Subscription expired — re-enable notifications", expired: true },
+        { error: "Subscription expired - re-enable notifications", expired: true },
         { status: 410 }
       );
     }
-    return NextResponse.json({ error: "Push service unreachable — try again later" }, { status: 502 });
+    return NextResponse.json({ error: "Push service unreachable - try again later" }, { status: 502 });
   }
+
+  return NextResponse.json({ success: true, devices: results });
 }
