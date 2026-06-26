@@ -3,7 +3,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
-import { getLocalDate, getDayRange } from "@/lib/time";
+import { getLocalDate, getDayRange, getDefaultTimezone } from "@/lib/time";
 
 const ratelimit = new Ratelimit({
   redis: new Redis({
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     .eq("id", user.id)
     .single();
 
-  const userTz = profile?.timezone ?? "America/Chicago";
+  const userTz = profile?.timezone ?? getDefaultTimezone();
 
   const now = new Date();
   const fourteenDaysLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);

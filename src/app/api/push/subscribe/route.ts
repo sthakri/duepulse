@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { Database } from "@/database.types";
 
@@ -15,8 +14,25 @@ const ratelimit = new Ratelimit({
 });
 
 export async function POST(req: NextRequest) {
-  // ── 1. Authenticate via session cookie — never trust body.userId ──────────
-  const supabase = await createClient();
+  const response = NextResponse.json({});
+
+  const supabase = createServerClient<Database>(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, { ...options, path: "/" });
+          });
+        },
+      },
+    }
+  );
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -27,7 +43,6 @@ export async function POST(req: NextRequest) {
 
   const userId = user.id;
 
-  // ── 2. Rate-limit by the verified user ID ─────────────────────────────────
   const { success: rateLimitOk } = await ratelimit.limit(userId);
   if (!rateLimitOk) {
     console.warn("push subscribe rate limited:", userId);
@@ -37,7 +52,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── 3. Read push subscription fields from body ────────────────────────────
   const body: unknown = await req.json();
 
   if (
@@ -50,7 +64,7 @@ export async function POST(req: NextRequest) {
     !(body as Record<string, unknown>).p256dh ||
     !(body as Record<string, unknown>).auth
   ) {
-    console.warn("push subscribe validation failed:", body);
+    console.warn("push subscribe validation failed");
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
@@ -60,13 +74,13 @@ export async function POST(req: NextRequest) {
     auth: string;
   };
 
-  try {
-    const serviceClient = createServerClient<Database>(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      env.SUPABASE_SERVICE_ROLE_KEY,
-      { cookies: { getAll: () => [], setAll: () => {} } }
-    );
+  const serviceClient = createServerClient<Database>(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    { cookies: { getAll: () => [], setAll: () => {} } }
+  );
 
+  try {
     await serviceClient
       .from("push_subscriptions")
       .upsert(

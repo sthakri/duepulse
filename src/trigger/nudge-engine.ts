@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
 import { generateNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
-import { getLocalHour, getLocalDay } from "@/lib/time"
+import { getLocalHour, getLocalDay, getDefaultTimezone } from "@/lib/time"
 import type { Database } from "@/database.types"
 import webpush from "web-push"
 import ws from "ws"
@@ -128,7 +128,7 @@ export const nudgeEngine = schedules.task({
       (userProfiles ?? []).map((p) => [p.id, p]),
     )
     const tzByUser = new Map(
-      (userProfiles ?? []).map((p) => [p.id, p.timezone ?? "America/Chicago"]),
+      (userProfiles ?? []).map((p) => [p.id, p.timezone ?? getDefaultTimezone()]),
     )
 
     // Key: "${day_of_week}:${hour_of_day}" — must match both day AND hour, not just hour.
@@ -139,7 +139,7 @@ export const nudgeEngine = schedules.task({
     }
 
     const productiveUserIds = uniqueUserIds.filter((uid) => {
-      const tz = tzByUser.get(uid) ?? "America/Chicago"
+      const tz = tzByUser.get(uid) ?? getDefaultTimezone()
       const localHour = getLocalHour(now, tz)
       const localDay = getLocalDay(now, tz)
       const key = `${localDay}:${localHour}`
@@ -169,7 +169,7 @@ export const nudgeEngine = schedules.task({
         }
 
         // Quiet hours check
-        const localHour = getLocalHour(now, tzByUser.get(userId) ?? "America/Chicago")
+        const localHour = getLocalHour(now, tzByUser.get(userId) ?? getDefaultTimezone())
 
         if (isInQuietHours(pf.quiet_hours_start, pf.quiet_hours_end, localHour)) {
           console.log(`[nudge-engine] Section A uid=${userId} in quiet hours — skipping`)
@@ -234,7 +234,7 @@ export const nudgeEngine = schedules.task({
           nearest.title,
           nearest.due_at,
           courseName,
-          tzByUser.get(userId) ?? "America/Chicago",
+          tzByUser.get(userId) ?? getDefaultTimezone(),
         )
         console.log(`[nudge-engine] Section A uid=${userId} nudge text: "${nudgeText}"`)
 
@@ -293,7 +293,7 @@ export const nudgeEngine = schedules.task({
 
         // Quiet hours check (skip if profile is missing)
         if (pf) {
-          const localHour = getLocalHour(now, tzByUser.get(userId) ?? "America/Chicago")
+        const localHour = getLocalHour(now, tzByUser.get(userId) ?? getDefaultTimezone())
 
           if (isInQuietHours(pf.quiet_hours_start, pf.quiet_hours_end, localHour)) {
             console.log(`[nudge-engine] Section B uid=${userId} in quiet hours — skipping`)

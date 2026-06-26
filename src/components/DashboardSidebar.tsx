@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -25,44 +25,21 @@ const NAV = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-export default function DashboardSidebar({
-  email,
-  initial,
+function NavItems({
+  pathname,
+  collapsed,
+  onClick,
 }: {
-  email?: string;
-  initial?: string;
+  pathname: string;
+  collapsed: boolean;
+  onClick?: () => void;
 }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
-
-  // Persist collapse preference
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("sidebar_collapsed");
-      if (stored === "true") setCollapsed(true);
-    } catch {}
-  }, []);
-
-  function toggleCollapse() {
-    const next = !collapsed;
-    setCollapsed(next);
-    try { localStorage.setItem("sidebar_collapsed", String(next)); } catch {}
-  }
-
-  async function handleSignOut() {
-    await createClient().auth.signOut({ scope: "local" });
-    router.push("/");
-  }
-
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
   }
 
-  const NavItems = ({ onClick }: { onClick?: () => void }) => (
+  return (
     <nav className="flex-1 px-2 py-3 space-y-0.5">
       {NAV.map(({ href, label, icon: Icon }) => {
         const active = isActive(href);
@@ -87,6 +64,38 @@ export default function DashboardSidebar({
       })}
     </nav>
   );
+}
+
+export default function DashboardSidebar({
+  email,
+  initial,
+}: {
+  email?: string;
+  initial?: string;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      const stored = localStorage.getItem("sidebar_collapsed");
+      return stored === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+
+  function toggleCollapse() {
+    const next = !collapsed;
+    setCollapsed(next);
+    try { localStorage.setItem("sidebar_collapsed", String(next)); } catch {}
+  }
+
+  async function handleSignOut() {
+    await createClient().auth.signOut({ scope: "local" });
+    router.push("/");
+  }
 
   return (
     <>
@@ -119,7 +128,7 @@ export default function DashboardSidebar({
                 <X size={18} />
               </button>
             </div>
-            <NavItems onClick={() => setMobileOpen(false)} />
+            <NavItems pathname={pathname} collapsed={false} onClick={() => setMobileOpen(false)} />
             <div className="border-t border-[#334155]/70">
               {email && initial && (
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-[#334155]/40">
@@ -187,7 +196,7 @@ export default function DashboardSidebar({
           </button>
         )}
 
-        <NavItems />
+        <NavItems pathname={pathname} collapsed={collapsed} />
 
         {/* User info + sign out */}
         <div className="border-t border-[#334155]/70">

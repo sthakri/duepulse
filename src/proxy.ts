@@ -23,16 +23,40 @@ export async function proxy(request: NextRequest) {
           );
         },
       },
-    },
+    }
   );
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { pathname } = request.nextUrl;
+
+  if (
+    !user &&
+    pathname !== "/" &&
+    !pathname.startsWith("/login") &&
+    !pathname.startsWith("/api") &&
+    !pathname.startsWith("/onboarding") &&
+    !pathname.startsWith("/features") &&
+    !pathname.startsWith("/how-it-works") &&
+    !pathname.startsWith("/install") &&
+    !pathname.startsWith("/_next")
+  ) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && pathname === "/login") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
 
   return supabaseResponse;
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|workbox-.*|worker-.*|manifest.json|icons|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

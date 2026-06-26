@@ -4,65 +4,121 @@ type CanvasAssignment = Omit<TablesInsert<"assignments">, "user_id" | "course_id
   canvas_course_id: number;
 };
 
+export type CanvasCourse = {
+  id: number;
+  name: string;
+  course_code?: string;
+};
+
+const ALLOWED_CANVAS_DOMAINS = /^(?:[a-zA-Z0-9-]+\.)?(?:instructure\.com|instructure\.io)$/;
+
+function validateCanvasDomain(domain: string): void {
+  if (!ALLOWED_CANVAS_DOMAINS.test(domain)) {
+    throw new Error(
+      `Blocked disallowed Canvas domain: "${domain}". Only *.instructure.com and *.instructure.io are permitted.`
+    );
+  }
+}
+
+async function fetchAllPages<T>(
+  token: string,
+  domain: string,
+  url: string
+): Promise<T[]> {
+  const all: T[] = [];
+  let nextUrl = url;
+
+  while (nextUrl) {
+    const response = await fetch(nextUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Canvas API returned HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data: T[] = await response.json();
+    all.push(...data);
+
+    // Parse Link header for pagination
+    const linkHeader = response.headers.get("Link");
+    nextUrl = "";
+    if (linkHeader) {
+      const links = linkHeader.split(", ");
+      for (const link of links) {
+        const match = link.match(/<([^>]+)>;\s*rel="next"/);
+        if (match) {
+          nextUrl = match[1];
+          break;
+        }
+      }
+    }
+  }
+
+  return all;
+}
+
+export async function getCanvasCourses(
+  token: string,
+  domain: string
+): Promise<CanvasCourse[]> {
+  validateCanvasDomain(domain);
+
+  const url = `https://${domain}/api/v1/courses?per_page=100&enrollment_state=active&enrollment_type=student&include[]=term`;
+  const courses = await fetchAllPages<CanvasCourse>(token, domain, url);
+
+  return courses.filter((c) => c.name && c.name.trim() !== "");
+}
+
 export async function getCanvasAssignments(
   token: string,
   domain: string
 ): Promise<CanvasAssignment[]> {
-  try {
-    const today = new Date();
-    const endDate = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const params = new URLSearchParams({
-      per_page: "50",
-      start_date: today.toISOString(),
-      end_date: endDate.toISOString(),
-    });
+  validateCanvasDomain(domain);
 
-    const response = await fetch(
-      `https://${domain}/api/v1/planner/items?${params}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+  const today = new Date();
+  const endDate = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const params = new URLSearchParams({
+    per_page: "100",
+    start_date: today.toISOString(),
+    end_date: endDate.toISOString(),
+  });
 
-    if (!response.ok) return [];
+  const assignmentsUrl = `https://${domain}/api/v1/planner/items?${params}`;
+  const items = await fetchAllPages<unknown>(token, domain, assignmentsUrl);
 
-    const items: unknown[] = await response.json();
-
-    return items
-      .filter(
-        (item): item is Record<string, unknown> =>
-          typeof item === "object" &&
-          item !== null &&
-          (item as Record<string, unknown>).plannable_type === "assignment"
-      )
-      .map((item) => {
-        const plannable = item.plannable as Record<string, unknown> | undefined;
-        const submissions = item.submissions as Record<string, unknown> | undefined;
-        return {
-          canvas_assignment_id: Number(item.plannable_id),
-          canvas_course_id: Number(item.course_id),
-          title: String(plannable?.title ?? ""),
-          // plannable.due_at is the UTC ISO-8601 string ("2024-05-23T04:59:00Z").
-          // plannable_date is a naive course-timezone string with no offset — PostgreSQL
-          // would treat it as UTC, causing a timezone shift in the browser display.
-          due_at: typeof plannable?.due_at === "string"
-            ? plannable.due_at
-            : typeof item.plannable_date === "string"
-            ? item.plannable_date
+  return items
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" &&
+        item !== null &&
+        (item as Record<string, unknown>).plannable_type === "assignment"
+    )
+    .map((item) => {
+      const plannable = item.plannable as Record<string, unknown> | undefined;
+      const submissions = item.submissions as Record<string, unknown> | undefined;
+      return {
+        canvas_assignment_id: Number(item.plannable_id),
+        canvas_course_id: Number(item.course_id),
+        title: String(plannable?.title ?? ""),
+        due_at: typeof plannable?.due_at === "string"
+          ? plannable.due_at
+          : typeof item.plannable_date === "string"
+          ? item.plannable_date
+          : null,
+        points_possible:
+          plannable?.points_possible != null
+            ? Number(plannable.points_possible)
             : null,
-          points_possible:
-            plannable?.points_possible != null
-              ? Number(plannable.points_possible)
-              : null,
-          html_url: typeof item.html_url === "string" ? item.html_url : null,
-          submission_types: Array.isArray(plannable?.submission_types)
-            ? (plannable.submission_types as string[])
-            : [],
-          is_completed: submissions?.submitted === true,
-          priority: 3,
-        };
-      });
-  } catch {
-    return [];
-  }
+        html_url: typeof item.html_url === "string" ? item.html_url : null,
+        submission_types: Array.isArray(plannable?.submission_types)
+          ? (plannable.submission_types as string[])
+          : [],
+        is_completed: submissions?.submitted === true,
+        priority: 3,
+      };
+    });
 }
 
 export async function testCanvasConnection(
@@ -70,9 +126,14 @@ export async function testCanvasConnection(
   domain: string
 ): Promise<{ success: boolean; courseCount: number; error?: string }> {
   try {
+    validateCanvasDomain(domain);
+
     const response = await fetch(
       `https://${domain}/api/v1/courses?per_page=50&enrollment_state=active&enrollment_type=student`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15_000),
+      }
     );
 
     if (!response.ok) {

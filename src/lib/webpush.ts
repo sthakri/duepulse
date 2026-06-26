@@ -15,7 +15,8 @@ export async function sendPushNotification(
 ): Promise<void> {
   await webpush.sendNotification(
     subscription,
-    JSON.stringify({ title, body: message })
+    JSON.stringify({ title, body: message }),
+    { TTL: 24 * 60 * 60 }
   );
 }
 

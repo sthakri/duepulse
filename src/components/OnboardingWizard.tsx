@@ -63,7 +63,7 @@ export default function OnboardingWizard({ userEmail }: { userEmail?: string }) 
       if (!("Notification" in window)) { toast.error("Notifications are not supported in this browser"); setStep(4); return; }
       const permission = await Notification.requestPermission();
       if (permission !== "granted") { setStep(4); return; }
-      if (process.env.NODE_ENV === "development") { toast.info("Push notifications are unavailable in development mode.", { duration: 6000 }); setStep(4); return; }
+      if (env.NEXT_PUBLIC_APP_ENV === "development") { toast.info("Push notifications are unavailable in development mode.", { duration: 6000 }); setStep(4); return; }
       if (!("serviceWorker" in navigator)) { toast.error("Notifications are not supported in this browser"); setStep(4); return; }
       let registration;
       try {

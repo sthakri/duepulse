@@ -106,6 +106,10 @@ create table if not exists public.assignments (
   unique (user_id, canvas_assignment_id)
 );
 
+create index if not exists assignments_user_completed_due
+  on public.assignments (user_id, is_completed, due_at)
+  where due_at is not null;
+
 alter table public.assignments enable row level security;
 
 create policy "assignments: owner select"
@@ -136,6 +140,9 @@ create table if not exists public.push_subscriptions (
   auth       text not null,
   created_at timestamptz not null default now()
 );
+
+create index if not exists push_subscriptions_user_id
+  on public.push_subscriptions (user_id);
 
 alter table public.push_subscriptions enable row level security;
 

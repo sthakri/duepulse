@@ -4,7 +4,8 @@ import SyncNowButton from "@/components/SyncNowButton";
 import WorkloadHeatmap from "@/components/WorkloadHeatmap";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import MobileInstallGuide from "@/components/MobileInstallGuide";
-import { getLocalDate, getLocalHour, getLocalDay } from "@/lib/time";
+import ProductiveWindowTracker from "@/components/ProductiveWindowTracker";
+import { getLocalDate, getDefaultTimezone } from "@/lib/time";
 import { BookOpen, AlertTriangle, CalendarClock, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
@@ -20,14 +21,7 @@ export default async function DashboardPage() {
   ]);
 
   const now = new Date();
-  const userTz = profile?.timezone ?? "America/Chicago";
-
-  // Track productive window
-  const hourOfDay = getLocalHour(now, userTz);
-  const dayOfWeek = getLocalDay(now, userTz);
-  const { data: pwRow } = await supabase.from("productive_windows").select("score").eq("user_id", userId).eq("hour_of_day", hourOfDay).eq("day_of_week", dayOfWeek).maybeSingle();
-  const newScore = Math.min(((pwRow?.score as number) ?? 0) + 0.01, 1);
-  await supabase.from("productive_windows").upsert({ user_id: userId, hour_of_day: hourOfDay, day_of_week: dayOfWeek, score: newScore, updated_at: new Date().toISOString() }, { onConflict: "user_id,hour_of_day,day_of_week" });
+  const userTz = profile?.timezone ?? getDefaultTimezone();
 
   // Heatmap data
   const heatmapCounts = (assignments ?? []).reduce<Record<string, number>>((acc, a) => {
@@ -74,6 +68,7 @@ export default async function DashboardPage() {
       </header>
 
       <main className="flex-1 px-5 py-6 sm:px-6 sm:py-7 max-w-7xl w-full mx-auto">
+        <ProductiveWindowTracker userId={userId} timezone={userTz} />
         <MobileInstallGuide />
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           {/* Heatmap */}

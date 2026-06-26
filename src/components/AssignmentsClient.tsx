@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AssignmentCard from "@/components/AssignmentCard";
 import SyncNowButton from "@/components/SyncNowButton";
@@ -28,14 +28,9 @@ const FILTER_COLORS: Record<Filter, string> = { all: "", overdue: "text-[#EF4444
 export default function AssignmentsClient({ assignments, userId, hasCanvas, userTz }: Props) {
   const searchParams = useSearchParams();
   const urlFilter = searchParams.get("filter") as Filter | null;
-  const [activeFilter, setActiveFilter] = useState<Filter>(
-    urlFilter && ["all","overdue","due-soon","upcoming","no-date"].includes(urlFilter) ? urlFilter : "all"
-  );
+  const isValidFilter = urlFilter && ["all","overdue","due-soon","upcoming","no-date"].includes(urlFilter);
+  const [activeFilter, setActiveFilter] = useState<Filter>(isValidFilter ? urlFilter : "all");
   const [activeCourse, setActiveCourse] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (urlFilter && ["all","overdue","due-soon","upcoming","no-date"].includes(urlFilter)) setActiveFilter(urlFilter as Filter);
-  }, [urlFilter]);
 
   const courses = Array.from(new Map(assignments.filter((a) => a.courses).map((a) => [a.course_id, a.courses!])).entries()).map(([id, course]) => ({ id, ...course }));
   const counts: Record<Filter, number> = { all: assignments.length, overdue: 0, "due-soon": 0, upcoming: 0, "no-date": 0 };

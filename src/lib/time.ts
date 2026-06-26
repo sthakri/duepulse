@@ -2,6 +2,15 @@ const DAY_NAMES: Record<string, number> = {
   Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
 };
 
+const SERVER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Chicago";
+
+export function getDefaultTimezone(): string {
+  if (typeof window !== "undefined") {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || SERVER_TIMEZONE;
+  }
+  return SERVER_TIMEZONE;
+}
+
 export function getLocalDate(date: Date, tz: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(date);
 }

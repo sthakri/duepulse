@@ -37,7 +37,7 @@ export default async function SettingsPage() {
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                   <p className="text-[#F8FAFC] text-sm font-medium">Connected to {profile.canvas_domain}</p>
-                  <p className="text-[#64748B] text-xs mt-0.5">Token ending in ···{profile.canvas_token.slice(-6)}</p>
+                  <p className="text-[#64748B] text-xs mt-0.5">Token saved · reconnect to update</p>
                 </div>
                 <Link href="/onboarding" className="flex items-center gap-1.5 text-sm font-medium text-[#818CF8] hover:text-[#6366F1] transition-colors">
                   Reconnect <ExternalLink size={12} />

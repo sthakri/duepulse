@@ -39,9 +39,9 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
         const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
         try {
           const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth }) });
-          if (!res.ok) console.warn("push re-association failed:", res.status);
-        } catch (err) { console.warn("push re-association error:", err); }
-        if (mounted) setState("subscribed");
+          if (res.ok && mounted) setState("subscribed");
+          else if (mounted) setState("idle");
+        } catch (err) { console.warn("push re-association error:", err); if (mounted) setState("idle"); }
 
         // Auto-renew when push subscription expires (browser fires this event).
         reg.addEventListener("pushsubscriptionchange", async () => {

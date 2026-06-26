@@ -4,7 +4,7 @@ import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
-import { getCanvasAssignments } from "@/lib/canvas";
+import { getCanvasAssignments, getCanvasCourses, CanvasCourse } from "@/lib/canvas";
 import { Database } from "@/database.types";
 
 const ratelimit = new Ratelimit({
@@ -56,14 +56,19 @@ export async function POST() {
   const token = profile.canvas_token;
   const domain = profile.canvas_domain;
 
-  // ── 4. Fetch assignments from Canvas ─────────────────────────────────────
+  // ── 4. Fetch courses (for names) and assignments from Canvas ──────────────
   let assignments: Awaited<ReturnType<typeof getCanvasAssignments>>;
+  let courses: Awaited<ReturnType<typeof getCanvasCourses>>;
   try {
-    assignments = await getCanvasAssignments(token, domain);
+    [assignments, courses] = await Promise.all([
+      getCanvasAssignments(token, domain),
+      getCanvasCourses(token, domain),
+    ]);
   } catch (err) {
-    console.error("Canvas API error:", err);
+    const message = err instanceof Error ? err.message : "Canvas connection failed";
+    console.error("Canvas API error:", message);
     return NextResponse.json(
-      { success: false, error: "Canvas connection failed" },
+      { success: false, error: message },
       { status: 400 }
     );
   }
@@ -77,6 +82,11 @@ export async function POST() {
 
   try {
     if (assignments.length > 0) {
+      // Build course name map from Canvas API response
+      const courseNameMap = new Map(
+        courses.map((c: CanvasCourse) => [c.id, c.name])
+      );
+
       const uniqueCourseIds = [...new Set(assignments.map((a) => a.canvas_course_id))];
 
       await serviceClient
@@ -85,13 +95,13 @@ export async function POST() {
           uniqueCourseIds.map((cid) => ({
             user_id: userId,
             canvas_course_id: cid,
-            name: String(cid),
+            name: courseNameMap.get(cid) ?? `Course ${cid}`,
           })),
-          { onConflict: "user_id,canvas_course_id", ignoreDuplicates: true }
+          { onConflict: "user_id,canvas_course_id" }
         )
         .throwOnError();
 
-      const { data: courses } = await serviceClient
+      const { data: dbCourses } = await serviceClient
         .from("courses")
         .select("id,canvas_course_id")
         .eq("user_id", userId)
@@ -99,7 +109,7 @@ export async function POST() {
         .throwOnError();
 
       const courseMap = new Map(
-        (courses ?? []).map((c) => [c.canvas_course_id, c.id])
+        (dbCourses ?? []).map((c) => [c.canvas_course_id, c.id])
       );
 
       const rows = assignments

@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { analyzeProductiveWindows } from "@/lib/ml";
-import { formatLocalHour } from "@/lib/time";
+import { formatLocalHour, getDefaultTimezone } from "@/lib/time";
 import BehavioralInsightCard from "@/components/BehavioralInsightCard";
 import ProductiveWindowsChart from "@/components/ProductiveWindowsChart";
 
 export const metadata = { title: "Insights — DuePulse" };
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const NUDGE_TYPE_LABELS: Record<string, string> = {
   productive_window: "Productive Window",
@@ -21,13 +22,16 @@ export default async function InsightsPage() {
   if (!user) redirect("/login");
 
   const userId = user.id;
+  const now = new Date();
+  now.setTime(now.getTime() - THIRTY_DAYS_MS);
+  const thirtyDaysAgo = now.toISOString();
   const [{ data: pwRows }, { data: profile }, { data: nudgeLogs }] = await Promise.all([
     supabase.from("productive_windows").select("hour_of_day, day_of_week, score").eq("user_id", userId),
     supabase.from("profiles").select("timezone").eq("id", userId).single(),
-    supabase.from("nudge_logs").select("nudge_type").eq("user_id", userId).gte("sent_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase.from("nudge_logs").select("nudge_type").eq("user_id", userId).gte("sent_at", thirtyDaysAgo),
   ]);
 
-  const userTz = profile?.timezone ?? "America/Chicago";
+  const userTz = profile?.timezone ?? getDefaultTimezone();
   const rows = pwRows ?? [];
   const insights = analyzeProductiveWindows(rows, userTz);
   const totalDaysTracked = new Set(rows.map((r) => r.day_of_week)).size;

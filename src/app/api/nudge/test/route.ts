@@ -45,7 +45,7 @@ function buildDeadlineMessage(
 }
 
 export async function GET(req: NextRequest) {
-  if (process.env.NODE_ENV !== "development") {
+  if (env.NODE_ENV !== "development") {
     return NextResponse.json({}, { status: 404 })
   }
 
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       .select("timezone")
       .eq("id", userId)
       .maybeSingle()
-    const userTz = profile?.timezone ?? "America/Chicago"
+    const userTz = profile?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
 
     const nudgeText = await generateNudge(
       assignment.title,

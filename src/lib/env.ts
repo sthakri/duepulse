@@ -13,11 +13,15 @@ export const env = createEnv({
     UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
     TRIGGER_SECRET_KEY: z.string().min(1),
     NUDGE_ENABLED: z.enum(["true", "false"]).default("false"),
+    NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+    NIM_BASE_URL: z.string().url().default("https://integrate.api.nvidia.com/v1"),
+    NIM_MODEL: z.string().min(1).default("mistralai/mistral-large-3-675b-instruct-2512"),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
     NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1),
+    NEXT_PUBLIC_APP_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   runtimeEnv: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -30,8 +34,12 @@ export const env = createEnv({
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,
     NUDGE_ENABLED: process.env.NUDGE_ENABLED,
+    NODE_ENV: process.env.NODE_ENV,
+    NIM_BASE_URL: process.env.NIM_BASE_URL,
+    NIM_MODEL: process.env.NIM_MODEL,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    NEXT_PUBLIC_APP_ENV: process.env.NODE_ENV,
   },
 });

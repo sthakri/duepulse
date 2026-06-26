@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import StressAlert from "@/components/StressAlert";
 import SyncNowButton from "@/components/SyncNowButton";
 import AssignmentsClient from "@/components/AssignmentsClient";
+import { getDefaultTimezone } from "@/lib/time";
 import { RefreshCw } from "lucide-react";
 
 export const metadata = { title: "Assignments — DuePulse" };
@@ -25,7 +26,7 @@ export default async function AssignmentsPage() {
   ]);
 
   const now = new Date();
-  const userTz = profile?.timezone ?? "America/Chicago";
+  const userTz = profile?.timezone ?? getDefaultTimezone();
   const hasCanvas = !!(profile?.canvas_token && profile?.canvas_domain);
 
   const lastSynced = profile?.updated_at ? (() => {
@@ -37,8 +38,7 @@ export default async function AssignmentsPage() {
     return `${Math.floor(h / 24)}d ago`;
   })() : null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const normalised = (assignments ?? []).map((a: any) => ({
+  const normalised = (assignments ?? []).map((a) => ({
     ...a,
     courses: Array.isArray(a.courses) ? (a.courses[0] ?? null) : (a.courses ?? null),
   }));
