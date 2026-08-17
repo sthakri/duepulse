@@ -15,9 +15,11 @@ function isMobileBrowser(): boolean {
     return false;
   if (window.matchMedia("(display-mode: standalone)").matches) return false;
 
-  // Desktop browsers — never gate
+  // Desktop browsers — never gate. iPadOS 13+ reports "Mac" UA, so also
+  // check for a touch device to catch Safari on iPad.
   const ua = navigator.userAgent;
-  if (!/iPhone|iPad|iPod|Android/i.test(ua)) return false;
+  if (!/iPhone|iPad|iPod|Android/i.test(ua) && !(ua.includes("Mac") && "ontouchend" in document))
+    return false;
 
   return true;
 }

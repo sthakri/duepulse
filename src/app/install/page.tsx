@@ -20,16 +20,42 @@ const androidSteps = [
   { icon: CheckCircle, label: "Open DuePulse from your Home Screen — done!" },
 ];
 
+function isStandalone(): boolean {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  if ((window.navigator as { standalone?: boolean }).standalone === true) return true;
+  return window.matchMedia("(display-mode: standalone)").matches;
+}
+
 export default function InstallPage() {
   const router = useRouter();
+  const [alreadyInstalled] = useState(() => isStandalone());
   const [platform, setPlatform] = useState<Platform>(() => {
     if (typeof navigator === "undefined") return "ios";
-    return /Android/i.test(navigator.userAgent) ? "android" : "ios";
+    const ua = navigator.userAgent;
+    // iPadOS 13+ reports "Mac" UA — treat touch-capable Macs as iOS.
+    if (/Android/i.test(ua)) return "android";
+    return "ios";
   });
 
   function handleBypass() {
     try { sessionStorage.setItem("duepulse_install_bypass", "true"); } catch {}
     router.push("/dashboard");
+  }
+
+  if (alreadyInstalled) {
+    return (
+      <main className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center px-4 text-[#F8FAFC]">
+        <div className="w-16 h-16 rounded-2xl bg-[#10B981]/10 border border-[#10B981]/20 flex items-center justify-center mb-4">
+          <CheckCircle className="text-[#10B981] w-8 h-8" />
+        </div>
+        <h1 className="text-[#F8FAFC] font-bold text-2xl mb-2">You&apos;re already installed</h1>
+        <p className="text-[#94A3B8] text-sm mb-6 max-w-xs text-center">DuePulse is running as a Home Screen app on this device.</p>
+        <button onClick={handleBypass}
+          className="bg-[#6366F1] hover:bg-[#818CF8] text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors">
+          Open Dashboard
+        </button>
+      </main>
+    );
   }
 
   const steps = platform === "ios" ? iosSteps : androidSteps;

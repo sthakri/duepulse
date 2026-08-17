@@ -23,7 +23,8 @@ function detectPlatform(): Platform {
   if (typeof navigator === "undefined" || typeof window === "undefined") return null;
   if ((window.navigator as { standalone?: boolean }).standalone === true) return null;
   const ua = navigator.userAgent;
-  if (/iPhone|iPad|iPod/.test(ua)) return "ios";
+  // iPadOS 13+ reports "Mac" UA — treat touch-capable Macs as iOS.
+  if (/iPhone|iPad|iPod/.test(ua) || (ua.includes("Mac") && "ontouchend" in document)) return "ios";
   if (/Android/.test(ua)) return "android";
   return null;
 }
