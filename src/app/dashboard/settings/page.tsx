@@ -58,7 +58,7 @@ export default async function SettingsPage() {
             <h2 className="text-[#F8FAFC] font-semibold text-base mb-4">Push Notifications</h2>
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <PushNotificationButton userId={user.id} />
-              <TestNotifButton userId={user.id} />
+              <TestNotifButton />
             </div>
           </section>
 

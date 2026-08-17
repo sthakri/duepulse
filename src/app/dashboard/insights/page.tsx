@@ -22,9 +22,7 @@ export default async function InsightsPage() {
   if (!user) redirect("/login");
 
   const userId = user.id;
-  const now = new Date();
-  now.setTime(now.getTime() - THIRTY_DAYS_MS);
-  const thirtyDaysAgo = now.toISOString();
+  const thirtyDaysAgo = new Date(new Date().getTime() - THIRTY_DAYS_MS).toISOString();
   const [{ data: pwRows }, { data: profile }, { data: nudgeLogs }] = await Promise.all([
     supabase.from("productive_windows").select("hour_of_day, day_of_week, score").eq("user_id", userId),
     supabase.from("profiles").select("timezone").eq("id", userId).single(),

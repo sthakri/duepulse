@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import AutoSync from "@/components/AutoSync";
+import MobileBrowserGate from "@/components/MobileBrowserGate";
 
 export default async function DashboardLayout({
   children,
@@ -19,6 +20,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="bg-[#0F172A] min-h-screen flex">
+      <MobileBrowserGate />
       <DashboardSidebar email={user.email ?? ""} initial={initial} />
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         <AutoSync />
