@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDuePulseStore } from "@/lib/store";
 
-export default function SyncNowButton({ userId }: { userId: string }) {
+export default function SyncNowButton() {
   const router = useRouter();
   const isSyncing = useDuePulseStore((s) => s.isSyncing);
   const setIsSyncing = useDuePulseStore((s) => s.setIsSyncing);
@@ -14,7 +14,7 @@ export default function SyncNowButton({ userId }: { userId: string }) {
   async function handleSync() {
     setIsSyncing(true);
     try {
-      const res = await fetch("/api/canvas/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) });
+      const res = await fetch("/api/canvas/sync", { method: "POST" });
       const data = (await res.json()) as { success?: boolean; error?: string; synced?: number };
       if (!res.ok) { toast.error(data.error ?? "Sync failed"); return; }
       toast.success(`Synced ${data.synced ?? 0} assignments`);

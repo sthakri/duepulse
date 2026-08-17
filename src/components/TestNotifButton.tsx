@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-export default function TestNotifButton({ userId }: { userId: string }) {
+export default function TestNotifButton() {
   const [showWarning, setShowWarning] = useState(false);
 
   async function getCurrentEndpoint(): Promise<string | null> {
@@ -36,7 +36,7 @@ export default function TestNotifButton({ userId }: { userId: string }) {
       const res = await fetch("/api/push/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, endpoint }),
+        body: JSON.stringify({ endpoint }),
       });
       const data = await res.json();
       if (res.ok) {

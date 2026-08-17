@@ -8,6 +8,17 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { env } from "@/lib/env";
 
+async function encryptToken(plaintext: string): Promise<string> {
+  const res = await fetch("/api/canvas/encrypt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plaintext }),
+  });
+  const data: { ciphertext?: string; error?: string } = await res.json();
+  if (!res.ok || !data.ciphertext) throw new Error(data.error ?? "Encryption failed");
+  return data.ciphertext;
+}
+
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
   const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -43,7 +54,8 @@ export default function OnboardingWizard({ userEmail }: { userEmail?: string }) 
     if (!result.success) {
       setError(result.error ?? "Connection failed");
     } else {
-      await createClient().from("profiles").upsert({ id: user.id, canvas_domain: domain, canvas_token: token, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      const encrypted = await encryptToken(token);
+      await createClient().from("profiles").upsert({ id: user.id, canvas_domain: domain, canvas_token: encrypted, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
       setCourseCount(result.courseCount);
       setStep(2);
     }
@@ -85,8 +97,7 @@ export default function OnboardingWizard({ userEmail }: { userEmail?: string }) 
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase.from("profiles").upsert({ id: user.id, onboarding_complete: true });
-      const { data: profile } = await supabase.from("profiles").select("canvas_token, canvas_domain").eq("id", user.id).single();
-      fetch("/api/canvas/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, token: profile?.canvas_token ?? "", domain: profile?.canvas_domain ?? "" }) });
+      fetch("/api/canvas/sync", { method: "POST" });
     }
     router.push("/dashboard");
   }

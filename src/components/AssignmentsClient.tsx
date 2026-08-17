@@ -10,7 +10,7 @@ type Course = { name: string; color: string };
 type Assignment = { id: string; title: string; due_at: string | null; points_possible: number | null; canvas_assignment_id: number; course_id: string; courses: Course | null };
 type Filter = "all" | "overdue" | "due-soon" | "upcoming" | "no-date";
 
-interface Props { assignments: Assignment[]; userId: string; hasCanvas: boolean; userTz: string }
+interface Props { assignments: Assignment[]; hasCanvas: boolean; userTz: string }
 
 function classifyAssignment(a: Assignment): Filter {
   if (!a.due_at) return "no-date";
@@ -25,7 +25,7 @@ function classifyAssignment(a: Assignment): Filter {
 const FILTER_LABELS: Record<Filter, string> = { all: "All", overdue: "Overdue", "due-soon": "Due Soon", upcoming: "Upcoming", "no-date": "No Date" };
 const FILTER_COLORS: Record<Filter, string> = { all: "", overdue: "text-[#EF4444]", "due-soon": "text-[#F59E0B]", upcoming: "text-[#10B981]", "no-date": "text-[#64748B]" };
 
-export default function AssignmentsClient({ assignments, userId, hasCanvas, userTz }: Props) {
+export default function AssignmentsClient({ assignments, hasCanvas, userTz }: Props) {
   const searchParams = useSearchParams();
   const urlFilter = searchParams.get("filter") as Filter | null;
   const isValidFilter = urlFilter && ["all","overdue","due-soon","upcoming","no-date"].includes(urlFilter);
@@ -56,7 +56,7 @@ export default function AssignmentsClient({ assignments, userId, hasCanvas, user
       <div className="w-16 h-16 rounded-2xl bg-[#243044] border border-[#334155] flex items-center justify-center mb-5"><RefreshCw size={24} className="text-[#64748B]" /></div>
       <h2 className="text-[#F8FAFC] font-bold text-xl mb-2">No assignments yet</h2>
       <p className="text-[#64748B] text-sm leading-relaxed max-w-xs mb-6">Sync your Canvas account to load your assignments.</p>
-      <SyncNowButton userId={userId} />
+      <SyncNowButton />
     </div>
   );
 

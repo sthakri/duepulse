@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-export default function ProductiveWindowTracker({ userId, timezone }: { userId: string; timezone: string }) {
+export default function ProductiveWindowTracker() {
   useEffect(() => {
     let mounted = true;
 
@@ -18,7 +18,6 @@ export default function ProductiveWindowTracker({ userId, timezone }: { userId: 
       }
     }
 
-    // Touch on mount and then every 5 minutes while tab is visible
     touch();
     const interval = setInterval(touch, 5 * 60 * 1000);
 
@@ -26,7 +25,7 @@ export default function ProductiveWindowTracker({ userId, timezone }: { userId: 
       mounted = false;
       clearInterval(interval);
     };
-  }, [userId, timezone]);
+  }, []);
 
   return null;
 }

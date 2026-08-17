@@ -44,7 +44,8 @@ function getDueDateInfo(due_at: string, userTz: string): { label: string; isOver
   return { label, isOverdue, isDueSoon }
 }
 
-export default function AssignmentCard({ title, course_name, due_at, points_possible, canvas_assignment_id: _cid, course_color = "#6366F1", userTz }: AssignmentCardProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function AssignmentCard({ title, course_name, due_at, points_possible, canvas_assignment_id: _canvas_assignment_id, course_color = "#6366F1", userTz }: AssignmentCardProps) {
   const dueInfo = due_at ? getDueDateInfo(due_at, userTz) : null
   const isOverdue = dueInfo?.isOverdue ?? false
   const isDueSoon = dueInfo?.isDueSoon ?? false

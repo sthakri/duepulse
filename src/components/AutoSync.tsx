@@ -4,10 +4,12 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+const VISIBILITY_COOLDOWN_MS = 5 * 60 * 1000;
 
 export default function AutoSync() {
   const router = useRouter();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSyncRef = useRef<number>(0);
 
   useEffect(() => {
     async function sync() {
@@ -19,6 +21,14 @@ export default function AutoSync() {
         if (res.ok) router.refresh();
       } catch {
         // Silent fail - don't bother the user
+      }
+    }
+
+    function syncWithCooldown() {
+      const now = Date.now();
+      if (now - lastSyncRef.current >= VISIBILITY_COOLDOWN_MS) {
+        lastSyncRef.current = now;
+        sync();
       }
     }
 
@@ -36,7 +46,7 @@ export default function AutoSync() {
 
     function handleVisibilityChange() {
       if (!document.hidden) {
-        sync();
+        syncWithCooldown();
         startPolling();
       } else {
         stopPolling();
@@ -45,6 +55,7 @@ export default function AutoSync() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     startPolling();
+    lastSyncRef.current = Date.now();
     sync();
 
     return () => {
