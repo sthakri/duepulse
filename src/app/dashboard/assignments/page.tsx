@@ -15,17 +15,20 @@ export default async function AssignmentsPage() {
   if (!user) redirect("/login");
 
   const userId = user.id;
+  const now = new Date();
+  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
   const [{ data: assignments }, { data: profile }] = await Promise.all([
     supabase
       .from("assignments")
       .select("id, title, due_at, points_possible, canvas_assignment_id, course_id, courses(name, color)")
       .eq("user_id", userId)
       .eq("is_completed", false)
+      .or(`due_at.is.null,and(due_at.gte.${fourteenDaysAgo.toISOString()},due_at.lte.${fourteenDaysFromNow.toISOString()})`)
       .order("due_at", { ascending: true, nullsFirst: false }),
     supabase.from("profiles").select("canvas_token, canvas_domain, timezone, updated_at").eq("id", userId).single(),
   ]);
 
-  const now = new Date();
   const userTz = profile?.timezone ?? getDefaultTimezone();
   const hasCanvas = !!(profile?.canvas_token && profile?.canvas_domain);
 
@@ -56,7 +59,7 @@ export default async function AssignmentsPage() {
               </span>
             )}
           </div>
-          {hasCanvas && <SyncNowButton userId={userId} />}
+          {hasCanvas && <SyncNowButton />}
         </div>
       </header>
 
@@ -65,7 +68,7 @@ export default async function AssignmentsPage() {
           <StressAlert userId={userId} />
         </div>
         <Suspense>
-          <AssignmentsClient assignments={normalised} userId={userId} hasCanvas={hasCanvas} userTz={userTz} />
+          <AssignmentsClient assignments={normalised} hasCanvas={hasCanvas} userTz={userTz} />
         </Suspense>
       </main>
     </>

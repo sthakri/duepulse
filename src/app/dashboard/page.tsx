@@ -15,12 +15,19 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
 
   const userId = user.id;
+  const now = new Date();
+  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
   const [{ data: assignments }, { data: profile }] = await Promise.all([
-    supabase.from("assignments").select("due_at").eq("user_id", userId).eq("is_completed", false),
+    supabase
+      .from("assignments")
+      .select("due_at")
+      .eq("user_id", userId)
+      .eq("is_completed", false)
+      .or(`due_at.is.null,and(due_at.gte.${fourteenDaysAgo.toISOString()},due_at.lte.${fourteenDaysFromNow.toISOString()})`),
     supabase.from("profiles").select("canvas_token, canvas_domain, timezone, updated_at").eq("id", userId).single(),
   ]);
 
-  const now = new Date();
   const userTz = profile?.timezone ?? getDefaultTimezone();
 
   // Heatmap data
@@ -62,13 +69,13 @@ export default async function DashboardPage() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <PushNotificationButton userId={userId} />
-            {hasCanvas && <SyncNowButton userId={userId} />}
+            {hasCanvas && <SyncNowButton />}
           </div>
         </div>
       </header>
 
       <main className="flex-1 px-5 py-6 sm:px-6 sm:py-7 max-w-7xl w-full mx-auto">
-        <ProductiveWindowTracker userId={userId} timezone={userTz} />
+        <ProductiveWindowTracker />
         <MobileInstallGuide />
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           {/* Heatmap */}
