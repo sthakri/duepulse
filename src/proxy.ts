@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
+const PUBLIC_PATHS = ["/", "/login", "/features", "/how-it-works", "/install"];
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -32,17 +34,7 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (
-    !user &&
-    pathname !== "/" &&
-    !pathname.startsWith("/login") &&
-    !pathname.startsWith("/api") &&
-    !pathname.startsWith("/onboarding") &&
-    !pathname.startsWith("/features") &&
-    !pathname.startsWith("/how-it-works") &&
-    !pathname.startsWith("/install") &&
-    !pathname.startsWith("/_next")
-  ) {
+  if (!user && !PUBLIC_PATHS.some((p) => pathname === p || (p !== "/" && pathname.startsWith(p))) && !pathname.startsWith("/api") && !pathname.startsWith("/_next")) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     return NextResponse.redirect(redirectUrl);

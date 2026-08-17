@@ -6,7 +6,9 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.63",
@@ -41,13 +43,14 @@
     "@trigger.dev/build": "4.4.6",
     "@types/d3": "^7.4.3",
     "@types/node": "^20",
-    "@types/web-push": "^3.6.4",
-    "@types/ws": "^8.5.14",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
+    "@types/ws": "^8.5.14",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }

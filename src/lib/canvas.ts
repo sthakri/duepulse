@@ -10,12 +10,20 @@ export type CanvasCourse = {
   course_code?: string;
 };
 
-const ALLOWED_CANVAS_DOMAINS = /^(?:[a-zA-Z0-9-]+\.)?(?:instructure\.com|instructure\.io)$/;
+const ALLOWED_CANVAS_DOMAINS = /^(?:(?:[a-zA-Z0-9-]+\.)+(?:instructure\.com|instructure\.io)|[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,})$/;
+
+function isPrivateIP(hostname: string): boolean {
+  return /^(?:10\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.|0\.|127\.|169\.254\.|fc|fe80)/i.test(hostname);
+}
 
 function validateCanvasDomain(domain: string): void {
-  if (!ALLOWED_CANVAS_DOMAINS.test(domain)) {
+  const hostname = domain.replace(/:\d+$/, "").toLowerCase();
+  if (isPrivateIP(hostname)) {
+    throw new Error(`Blocked private/internal domain: "${domain}".`);
+  }
+  if (!ALLOWED_CANVAS_DOMAINS.test(hostname)) {
     throw new Error(
-      `Blocked disallowed Canvas domain: "${domain}". Only *.instructure.com and *.instructure.io are permitted.`
+      `Blocked disallowed Canvas domain: "${domain}". Only *.instructure.com, *.instructure.io, or standard school domains are permitted.`
     );
   }
 }
@@ -27,8 +35,11 @@ async function fetchAllPages<T>(
 ): Promise<T[]> {
   const all: T[] = [];
   let nextUrl = url;
+  let pageCount = 0;
+  const MAX_PAGES = 50;
 
-  while (nextUrl) {
+  while (nextUrl && pageCount < MAX_PAGES) {
+    pageCount++;
     const response = await fetch(nextUrl, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(15_000),
@@ -41,7 +52,6 @@ async function fetchAllPages<T>(
     const data: T[] = await response.json();
     all.push(...data);
 
-    // Parse Link header for pagination
     const linkHeader = response.headers.get("Link");
     nextUrl = "";
     if (linkHeader) {

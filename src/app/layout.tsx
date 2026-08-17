@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import MobileBrowserGate from "@/components/MobileBrowserGate";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -33,7 +32,6 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} font-sans min-h-full flex flex-col bg-[#0F172A]`}
       >
-        <MobileBrowserGate />
         {children}
         <Toaster />
       </body>
