@@ -154,6 +154,11 @@ create policy "push_subscriptions: owner insert"
   on public.push_subscriptions for insert
   with check (auth.uid() = user_id);
 
+create policy "push_subscriptions: owner update"
+  on public.push_subscriptions for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 create policy "push_subscriptions: owner delete"
   on public.push_subscriptions for delete
   using (auth.uid() = user_id);
@@ -166,7 +171,7 @@ create table if not exists public.productive_windows (
   user_id      uuid not null references auth.users(id) on delete cascade,
   day_of_week  smallint not null check (day_of_week between 0 and 6), -- 0=Sun, 6=Sat
   hour_of_day  smallint not null check (hour_of_day between 0 and 23),
-  score        numeric(4,3) not null default 0 check (score between 0 and 1),
+  score        numeric(4,3) not null default 0 check (score between 0 and 1), -- max 1.000, 3 decimal places — safe at current threshold range (0.02–0.07)
   updated_at   timestamptz not null default now(),
   unique (user_id, day_of_week, hour_of_day)
 );
@@ -232,7 +237,7 @@ create table if not exists public.nudge_logs (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   assignment_id  uuid references public.assignments(id) on delete cascade,
-  nudge_type     text not null check (nudge_type in ('productive_window', '12h', '6h', '1h')),
+  nudge_type     text not null check (nudge_type in ('productive_window', '12h', '6h', '1h', 'overdue')),
   sent_at        timestamptz not null default now()
 );
 
@@ -248,4 +253,17 @@ alter table public.nudge_logs enable row level security;
 
 create policy "nudge_logs: owner select"
   on public.nudge_logs for select
+  using (auth.uid() = user_id);
+
+create policy "nudge_logs: owner insert"
+  on public.nudge_logs for insert
+  with check (auth.uid() = user_id);
+
+create policy "nudge_logs: owner update"
+  on public.nudge_logs for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "nudge_logs: owner delete"
+  on public.nudge_logs for delete
   using (auth.uid() = user_id);

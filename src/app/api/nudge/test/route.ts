@@ -3,6 +3,8 @@ import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
 import { generateNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
+import { getDefaultTimezone } from "@/lib/time"
+import { nudgeTestQuerySchema } from "@/lib/validations"
 import type { Database } from "@/database.types"
 import webpush from "web-push"
 
@@ -45,20 +47,18 @@ function buildDeadlineMessage(
 }
 
 export async function GET(req: NextRequest) {
-  if (env.NODE_ENV !== "development") {
+  if (env.NODE_ENV === "production") {
     return NextResponse.json({}, { status: 404 })
   }
 
-  const userId = req.nextUrl.searchParams.get("userId")
-  if (!userId) {
-    return NextResponse.json({ error: "Missing userId" }, { status: 400 })
+  const parsed = nudgeTestQuerySchema.safeParse({
+    userId: req.nextUrl.searchParams.get("userId"),
+    type: req.nextUrl.searchParams.get("type") ?? "productive_window",
+  })
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") }, { status: 422 })
   }
-
-  const rawType = req.nextUrl.searchParams.get("type") ?? "productive_window"
-  if (!["productive_window", "12h", "6h", "1h"].includes(rawType)) {
-    return NextResponse.json({ error: "Invalid type. Use: productive_window | 12h | 6h | 1h" }, { status: 400 })
-  }
-  const type = rawType as NudgeType
+  const { userId, type } = parsed.data
 
   const serviceClient = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -76,6 +76,69 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date()
+
+  // ── Overdue nudge ────────────────────────────────────────────────────────────
+  if (type === "overdue") {
+    const { data: assignment } = await serviceClient
+      .from("assignments")
+      .select("id, title, due_at, courses(name)")
+      .eq("user_id", userId)
+      .eq("is_completed", false)
+      .lt("due_at", now.toISOString())
+      .order("due_at", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (!assignment) {
+      return NextResponse.json({ error: "No overdue assignment found" }, { status: 400 })
+    }
+
+    const courseName =
+      (assignment.courses as { name: string } | null)?.name ?? "Unknown Course"
+
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("timezone")
+      .eq("id", userId)
+      .maybeSingle()
+    const userTz = profile?.timezone ?? getDefaultTimezone()
+
+    const nudgeText = await generateNudge(
+      assignment.title,
+      assignment.due_at ?? now.toISOString(),
+      courseName,
+      userTz,
+    )
+
+    const results: string[] = []
+    for (const sub of subs) {
+      const subscription: webpush.PushSubscription = {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth },
+      }
+      try {
+        await sendPushNotification(subscription, nudgeText, "Overdue Assignment 📌")
+        results.push(`✓ ${sub.endpoint.slice(0, 50)}…`)
+      } catch (err: unknown) {
+        const statusCode = (err as { statusCode?: number })?.statusCode
+        if (statusCode === 410 || statusCode === 404) {
+          await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
+          results.push(`✗ stale (${statusCode}), deleted`)
+        } else {
+          results.push(`✗ error: ${String(err)}`)
+        }
+      }
+    }
+
+    await serviceClient.from("nudge_logs").insert({
+      user_id: userId,
+      assignment_id: assignment.id,
+      nudge_type: "overdue",
+      sent_at: now.toISOString(),
+    })
+
+    return NextResponse.json({ sent: true, type, assignment: assignment.title, nudge: nudgeText, devices: results })
+  }
 
   // ── Productive window nudge ──────────────────────────────────────────────────
   if (type === "productive_window") {
@@ -105,7 +168,7 @@ export async function GET(req: NextRequest) {
       .select("timezone")
       .eq("id", userId)
       .maybeSingle()
-    const userTz = profile?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+    const userTz = profile?.timezone ?? getDefaultTimezone()
 
     const nudgeText = await generateNudge(
       assignment.title,
