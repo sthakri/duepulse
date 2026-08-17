@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +13,7 @@ const ratelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(60, "1 m"),
 });
 
-export async function POST(_req: NextRequest) {
+export async function POST() {
   const supabase = await createClient();
   const {
     data: { user },

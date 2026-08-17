@@ -5,6 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { getCanvasAssignments, getCanvasCourses, CanvasCourse } from "@/lib/canvas";
+import { decryptOrRaw, encrypt, isLikelyEncrypted } from "@/lib/crypto";
 import { Database } from "@/database.types";
 
 const ratelimit = new Ratelimit({
@@ -53,8 +54,17 @@ export async function POST() {
     );
   }
 
-  const token = profile.canvas_token;
+  const token = await decryptOrRaw(profile.canvas_token);
   const domain = profile.canvas_domain;
+
+  if (!isLikelyEncrypted(profile.canvas_token)) {
+    encrypt(profile.canvas_token).then(async (ct) => {
+      try {
+        await supabase.from("profiles").update({ canvas_token: ct }).eq("id", userId);
+        console.log(`Auto-encrypted canvas_token for ${userId}`);
+      } catch {}
+    });
+  }
 
   // ── 4. Fetch courses (for names) and assignments from Canvas ──────────────
   let assignments: Awaited<ReturnType<typeof getCanvasAssignments>>;

@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { Database } from "@/database.types";
+import { pushSubscribeSchema } from "@/lib/validations";
 
 const ratelimit = new Ratelimit({
   redis: new Redis({
@@ -14,25 +16,7 @@ const ratelimit = new Ratelimit({
 });
 
 export async function POST(req: NextRequest) {
-  const response = NextResponse.json({});
-
-  const supabase = createServerClient<Database>(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, { ...options, path: "/" });
-          });
-        },
-      },
-    }
-  );
-
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -45,34 +29,19 @@ export async function POST(req: NextRequest) {
 
   const { success: rateLimitOk } = await ratelimit.limit(userId);
   if (!rateLimitOk) {
-    console.warn("push subscribe rate limited:", userId);
     return NextResponse.json(
       { error: "Too many requests. Try again later." },
       { status: 429 }
     );
   }
 
-  const body: unknown = await req.json();
-
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    typeof (body as Record<string, unknown>).endpoint !== "string" ||
-    typeof (body as Record<string, unknown>).p256dh !== "string" ||
-    typeof (body as Record<string, unknown>).auth !== "string" ||
-    !(body as Record<string, unknown>).endpoint ||
-    !(body as Record<string, unknown>).p256dh ||
-    !(body as Record<string, unknown>).auth
-  ) {
-    console.warn("push subscribe validation failed");
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  const raw: unknown = await req.json();
+  const parsed = pushSubscribeSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") }, { status: 422 });
   }
 
-  const { endpoint, p256dh, auth } = body as {
-    endpoint: string;
-    p256dh: string;
-    auth: string;
-  };
+  const { endpoint, p256dh, auth } = parsed.data;
 
   const serviceClient = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,

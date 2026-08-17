@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { Database } from "@/database.types";
 import { sendPushNotification } from "@/lib/webpush";
+import { pushTestSchema } from "@/lib/validations";
 import webpush from "web-push";
 
 const ratelimit = new Ratelimit({
@@ -16,29 +18,7 @@ const ratelimit = new Ratelimit({
 });
 
 export async function POST(req: NextRequest) {
-  if (env.NODE_ENV !== "development") {
-    return NextResponse.json({}, { status: 404 });
-  }
-
-  const response = NextResponse.json({});
-
-  const supabase = createServerClient<Database>(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, { ...options, path: "/" });
-          });
-        },
-      },
-    }
-  );
-
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -57,18 +37,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body: unknown = await req.json();
-
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    typeof (body as Record<string, unknown>).userId !== "string" ||
-    typeof (body as Record<string, unknown>).endpoint !== "string"
-  ) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  const raw: unknown = await req.json();
+  const parsed = pushTestSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") }, { status: 422 });
   }
 
-  const { endpoint } = body as { userId: string; endpoint: string };
+  const { endpoint } = parsed.data;
 
   const serviceClient = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
