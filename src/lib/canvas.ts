@@ -10,6 +10,15 @@ export type CanvasCourse = {
   course_code?: string;
 };
 
+// ponytail: one subclass beats a string sniff. 401 is the only auth signal
+// Canvas returns; everything else stays a generic Error.
+export class CanvasAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CanvasAuthError";
+  }
+}
+
 const ALLOWED_CANVAS_DOMAINS = /^(?:(?:[a-zA-Z0-9-]+\.)+(?:instructure\.com|instructure\.io)|[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,})$/;
 
 function isPrivateIP(hostname: string): boolean {
@@ -46,6 +55,9 @@ async function fetchAllPages<T>(
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new CanvasAuthError(`Canvas returned 401 — token expired or revoked`);
+      }
       throw new Error(`Canvas API returned HTTP ${response.status}: ${response.statusText}`);
     }
 

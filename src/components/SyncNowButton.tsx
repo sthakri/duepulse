@@ -10,13 +10,25 @@ export default function SyncNowButton() {
   const router = useRouter();
   const isSyncing = useDuePulseStore((s) => s.isSyncing);
   const setIsSyncing = useDuePulseStore((s) => s.setIsSyncing);
+  const setTokenExpired = useDuePulseStore((s) => s.setTokenExpired);
 
   async function handleSync() {
     setIsSyncing(true);
     try {
       const res = await fetch("/api/canvas/sync", { method: "POST" });
-      const data = (await res.json()) as { success?: boolean; error?: string; synced?: number };
-      if (!res.ok) { toast.error(data.error ?? "Sync failed"); return; }
+      const data = (await res.json()) as { success?: boolean; error?: string; synced?: number; tokenExpired?: boolean };
+      if (!res.ok) {
+        if (res.status === 401 && data.tokenExpired) {
+          setTokenExpired(true);
+          toast.error("Canvas token expired — regenerate and reconnect", {
+            action: { label: "Reconnect", onClick: () => router.push("/onboarding") },
+          });
+        } else {
+          toast.error(data.error ?? "Sync failed");
+        }
+        return;
+      }
+      setTokenExpired(false);
       toast.success(`Synced ${data.synced ?? 0} assignments`);
       router.refresh();
     } catch { toast.error("Network error — sync failed"); }

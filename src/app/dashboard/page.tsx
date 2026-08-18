@@ -24,6 +24,7 @@ export default async function DashboardPage() {
       .select("due_at")
       .eq("user_id", userId)
       .eq("is_completed", false)
+      .is("dismissed_at", null)
       .or(`due_at.is.null,and(due_at.gte.${fourteenDaysAgo.toISOString()},due_at.lte.${fourteenDaysFromNow.toISOString()})`),
     supabase.from("profiles").select("canvas_token, canvas_domain, timezone, updated_at").eq("id", userId).single(),
   ]);

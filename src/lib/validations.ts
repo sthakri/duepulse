@@ -20,6 +20,10 @@ export const nudgeTestQuerySchema = z.object({
   type: z.enum(["productive_window", "12h", "6h", "1h", "overdue"]).default("productive_window"),
 });
 
+export const dismissAssignmentSchema = z.object({
+  assignmentId: z.string().uuid(),
+});
+
 export function validateBody<T>(schema: z.ZodType<T>, body: unknown): [T, null] | [null, string] {
   const result = schema.safeParse(body);
   if (result.success) return [result.data, null];

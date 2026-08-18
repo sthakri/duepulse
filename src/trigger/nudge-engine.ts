@@ -11,6 +11,11 @@ import ws from "ws"
 // ── Deadline threshold definitions ────────────────────────────────────────────
 type DeadlineType = "12h" | "6h" | "1h"
 
+// ponytail: pure helper lives in src/lib/overdue-dedup.ts so it can be
+// unit-tested without loading env vars. Re-exported here for local use.
+import { filterNeverNudgedOverdue } from "@/lib/overdue-dedup";
+export { filterNeverNudgedOverdue };
+
 const DEADLINE_THRESHOLDS: Array<{
   type: DeadlineType
   label: string
@@ -211,6 +216,7 @@ export const nudgeEngine = schedules.task({
           .select("id, title, due_at, courses(name)")
           .eq("user_id", userId)
           .eq("is_completed", false)
+          .is("dismissed_at", null)
           .gt("due_at", now.toISOString())
           .lt("due_at", fourteenDaysFromNow.toISOString())
           .order("due_at", { ascending: true })
@@ -314,6 +320,7 @@ export const nudgeEngine = schedules.task({
           .select("id, title, due_at")
           .eq("user_id", userId)
           .eq("is_completed", false)
+          .is("dismissed_at", null)
           .gt("due_at", now.toISOString())
           .lte("due_at", thirteenHoursFromNow.toISOString())
           .order("due_at", { ascending: true })
@@ -395,27 +402,28 @@ export const nudgeEngine = schedules.task({
     console.log(`[nudge-engine] Section B done: deadline_sent=${deadlineSent}`)
 
     // ── Section C: Cleanup completed assignments ──────────────────────────────
-    // Hard-delete assignments marked completed more than 5 days ago.
+    // Hard-delete assignments marked completed more than 3 days ago.
     // nudge_logs cascade-deletes via FK, so no orphan cleanup needed.
-    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000)
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
     let cleanedUp = 0
     try {
       const { count } = await serviceClient
         .from("assignments")
         .delete({ count: "exact" })
         .eq("is_completed", true)
-        .lt("updated_at", fiveDaysAgo.toISOString())
+        .lt("updated_at", threeDaysAgo.toISOString())
       cleanedUp = count ?? 0
-      console.log(`[nudge-engine] Section C: deleted ${cleanedUp} completed assignment(s) older than 5 days`)
+      console.log(`[nudge-engine] Section C: deleted ${cleanedUp} completed assignment(s) older than 3 days`)
     } catch (err) {
-      console.error(`[nudge-engine] Section C cleanup error:`, err)
+      console.error("[nudge-engine] Section C cleanup error:", err)
     }
 
     // ── Section D: Overdue reminders ──────────────────────────────────────────
     // For each user with push subs, find incomplete past-due assignments and
-    // nudge once per 24h per assignment. Fires even in minimal mode (overdue is
-    // existential). Quiet hours and pause still honored.
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    // nudge EXACTLY ONCE per assignment, ever. Fires even in minimal mode
+    // (overdue is existential). Quiet hours and pause still honored.
+    // The partial unique index nudge_logs_dedup(backstops) — once an overdue
+    // log exists for (user_id, assignment_id, 'overdue'), it never inserts again.
     let overdueSent = 0
 
     console.log(`[nudge-engine] Section D: processing ${allSubs.length} push subscription(s) for overdue`)
@@ -436,12 +444,13 @@ export const nudgeEngine = schedules.task({
           }
         }
 
-        // Past-due, incomplete assignments for this user.
+        // Past-due, incomplete, non-dismissed assignments for this user.
         const { data: overdueAssignments, error: overdueError } = await serviceClient
           .from("assignments")
           .select("id, title, due_at, courses(name)")
           .eq("user_id", userId)
           .eq("is_completed", false)
+          .is("dismissed_at", null)
           .lt("due_at", now.toISOString())
           .order("due_at", { ascending: true })
           .limit(5)
@@ -452,20 +461,18 @@ export const nudgeEngine = schedules.task({
         }
         if (!overdueAssignments || overdueAssignments.length === 0) return
 
-        // Dedup: skip assignments already nudged overdue in the last 24h.
+        // Once-ever dedup: skip any assignment that already has ANY overdue log.
         const assignmentIds = overdueAssignments.map((a) => a.id)
-        const { data: recentOverdueLogs } = await serviceClient
+        const { data: existingOverdueLogs } = await serviceClient
           .from("nudge_logs")
           .select("assignment_id")
           .eq("user_id", userId)
           .eq("nudge_type", "overdue")
           .in("assignment_id", assignmentIds)
-          .gte("sent_at", oneDayAgo.toISOString())
 
-        const recentlyNudged = new Set((recentOverdueLogs ?? []).map((l) => l.assignment_id))
-        const toNudge = overdueAssignments.filter((a) => !recentlyNudged.has(a.id))
+        const toNudge = filterNeverNudgedOverdue(overdueAssignments, existingOverdueLogs ?? [])
         if (toNudge.length === 0) {
-          console.log(`[nudge-engine] Section D uid=${userId} all overdue already nudged in last 24h`)
+          console.log(`[nudge-engine] Section D uid=${userId} all overdue already nudged once — skipping`)
           return
         }
 
@@ -499,12 +506,13 @@ export const nudgeEngine = schedules.task({
             continue
           }
 
-          await serviceClient.from("nudge_logs").insert({
-            user_id: userId,
-            assignment_id: a.id,
-            nudge_type: "overdue",
-            sent_at: now.toISOString(),
-          })
+          // ponytail: onConflict 'ignoreAll' is the DB-level backstop. Once the
+          // partial unique index has (user,assignment,'overdue'), this is a no-op.
+          await serviceClient.from("nudge_logs")
+            .upsert(
+              { user_id: userId, assignment_id: a.id, nudge_type: "overdue", sent_at: now.toISOString() },
+              { onConflict: "user_id,assignment_id,nudge_type", ignoreDuplicates: true }
+            )
         }
       }),
     )

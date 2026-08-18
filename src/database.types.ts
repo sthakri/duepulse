@@ -19,6 +19,7 @@ export type Database = {
           canvas_assignment_id: number
           course_id: string
           created_at: string
+          dismissed_at: string | null
           due_at: string | null
           estimated_minutes: number | null
           html_url: string | null
@@ -35,6 +36,7 @@ export type Database = {
           canvas_assignment_id: number
           course_id: string
           created_at?: string
+          dismissed_at?: string | null
           due_at?: string | null
           estimated_minutes?: number | null
           html_url?: string | null
@@ -51,6 +53,7 @@ export type Database = {
           canvas_assignment_id?: number
           course_id?: string
           created_at?: string
+          dismissed_at?: string | null
           due_at?: string | null
           estimated_minutes?: number | null
           html_url?: string | null

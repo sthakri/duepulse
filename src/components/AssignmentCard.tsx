@@ -1,14 +1,21 @@
-import { Card } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { X } from "lucide-react";
 
 interface AssignmentCardProps {
-  title: string
-  course_name: string
-  due_at: string | null
-  points_possible: number | null
-  canvas_assignment_id: string
-  course_color?: string
-  userTz: string
+  id: string;
+  title: string;
+  course_name: string;
+  due_at: string | null;
+  points_possible: number | null;
+  canvas_assignment_id: string;
+  course_color?: string;
+  userTz: string;
 }
 
 function getDueDateInfo(due_at: string, userTz: string): { label: string; isOverdue: boolean; isDueSoon: boolean } {
@@ -44,22 +51,51 @@ function getDueDateInfo(due_at: string, userTz: string): { label: string; isOver
   return { label, isOverdue, isDueSoon }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function AssignmentCard({ title, course_name, due_at, points_possible, canvas_assignment_id: _canvas_assignment_id, course_color = "#6366F1", userTz }: AssignmentCardProps) {
+export default function AssignmentCard({ id, title, course_name, due_at, points_possible, canvas_assignment_id: _canvas_assignment_id, course_color = "#6366F1", userTz }: AssignmentCardProps) {
+  const router = useRouter();
+  const [dismissing, setDismissing] = useState(false);
   const dueInfo = due_at ? getDueDateInfo(due_at, userTz) : null
   const isOverdue = dueInfo?.isOverdue ?? false
   const isDueSoon = dueInfo?.isDueSoon ?? false
 
+  async function handleDismiss() {
+    setDismissing(true);
+    try {
+      const res = await fetch("/api/assignments/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentId: id }),
+      });
+      const data = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok) { toast.error(data.error ?? "Dismiss failed"); return; }
+      toast.success("Assignment dismissed");
+      router.refresh();
+    } catch { toast.error("Network error — dismiss failed"); }
+    finally { setDismissing(false); }
+  }
+
   return (
     <Card
       className={cn(
-        "rounded-[18px] bg-[#1E293B]/80 border border-[#334155]/70 p-4 flex flex-col gap-2 ring-0 shadow-none hover:border-[#6366F1]/40 hover:bg-[#243044]/80 transition-all duration-150",
+        "rounded-[18px] bg-[#1E293B]/80 border border-[#334155]/70 p-4 flex flex-col gap-2 ring-0 shadow-none hover:border-[#6366F1]/40 hover:bg-[#243044]/80 transition-all duration-150 relative",
         isOverdue && "opacity-70"
       )}
       style={{ borderLeft: `3px solid ${course_color}` }}
     >
+      {isOverdue && (
+        <button
+          type="button"
+          onClick={handleDismiss}
+          disabled={dismissing}
+          aria-label="Dismiss overdue assignment"
+          title="Dismiss this overdue assignment"
+          className="absolute top-2 right-2 z-10 rounded-md p-1 text-[#64748B] transition hover:bg-[#334155] hover:text-[#CBD5E1] disabled:opacity-50"
+        >
+          <X size={14} />
+        </button>
+      )}
       <p className="text-[#64748B] text-xs uppercase tracking-wide leading-none">{course_name}</p>
-      <p className="text-[#F8FAFC] font-semibold text-base">{title}</p>
+      <p className="text-[#F8FAFC] font-semibold text-base pr-6">{title}</p>
       <div className="flex flex-wrap items-center gap-2">
         {due_at ? (
           <span className="text-[#94A3B8] text-xs">{dueInfo!.label}</span>

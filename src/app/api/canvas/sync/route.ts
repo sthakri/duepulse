@@ -4,7 +4,7 @@ import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
-import { getCanvasAssignments, getCanvasCourses, CanvasCourse } from "@/lib/canvas";
+import { getCanvasAssignments, getCanvasCourses, CanvasCourse, CanvasAuthError } from "@/lib/canvas";
 import { decryptOrRaw, encrypt, isLikelyEncrypted } from "@/lib/crypto";
 import { Database } from "@/database.types";
 
@@ -13,7 +13,7 @@ const ratelimit = new Ratelimit({
     url: env.UPSTASH_REDIS_REST_URL,
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
-  limiter: Ratelimit.slidingWindow(10, "1 h"),
+  limiter: Ratelimit.slidingWindow(30, "1 h"),
 });
 
 export async function POST() {
@@ -75,6 +75,12 @@ export async function POST() {
       getCanvasCourses(token, domain),
     ]);
   } catch (err) {
+    if (err instanceof CanvasAuthError) {
+      return NextResponse.json(
+        { success: false, tokenExpired: true, error: "Canvas token expired — generate a new one in Canvas → Account → Settings → New Access Token and reconnect." },
+        { status: 401 }
+      );
+    }
     const message = err instanceof Error ? err.message : "Canvas connection failed";
     console.error("Canvas API error:", message);
     return NextResponse.json(
@@ -122,7 +128,45 @@ export async function POST() {
         (dbCourses ?? []).map((c) => [c.canvas_course_id, c.id])
       );
 
+      // Fetch existing dismissed rows for the incoming assignment IDs so we can
+      // (a) skip re-upserting dismissed-but-still-incomplete rows (keeps
+      //     dismissed_at intact and avoids resetting updated_at every sync),
+      // (b) hard-delete dismissed rows that Canvas now reports submitted —
+      //     the user dismissed them and Canvas is source of truth, so no need
+      //     to keep the row around.
+      const incomingCanvasIds = assignments.map((a) => a.canvas_assignment_id);
+      const { data: existingDismissed } = await serviceClient
+        .from("assignments")
+        .select("id, canvas_assignment_id, is_completed")
+        .eq("user_id", userId)
+        .in("canvas_assignment_id", incomingCanvasIds)
+        .not("dismissed_at", "is", null)
+        .throwOnError();
+
+      const dismissedIdMap = new Map(
+        (existingDismissed ?? []).map((r) => [r.canvas_assignment_id, r.id])
+      );
+
+      // Dismissed + Canvas now reports submitted → delete. The user dismissed
+      // this assignment; no need to resurrect it as a completed row.
+      const toDeleteIds: string[] = [];
+      for (const a of assignments) {
+        if (a.is_completed && dismissedIdMap.has(a.canvas_assignment_id)) {
+          toDeleteIds.push(dismissedIdMap.get(a.canvas_assignment_id)!);
+        }
+      }
+
+      if (toDeleteIds.length > 0) {
+        await serviceClient
+          .from("assignments")
+          .delete()
+          .in("id", toDeleteIds)
+          .throwOnError();
+      }
+
+      // Build upsert payload, excluding every dismissed row (deleted or kept hidden).
       const rows = assignments
+        .filter((a) => !dismissedIdMap.has(a.canvas_assignment_id))
         .map(({ canvas_course_id, ...a }) => ({
           ...a,
           user_id: userId,

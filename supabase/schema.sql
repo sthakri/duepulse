@@ -101,14 +101,15 @@ create table if not exists public.assignments (
   estimated_minutes    int,
   priority             smallint not null default 2 check (priority between 1 and 3),
   is_completed         boolean not null default false,
+  dismissed_at         timestamptz,
   created_at           timestamptz not null default now(),
   updated_at           timestamptz not null default now(),
   unique (user_id, canvas_assignment_id)
 );
 
-create index if not exists assignments_user_completed_due
+create index if not exists assignments_user_active_due
   on public.assignments (user_id, is_completed, due_at)
-  where due_at is not null;
+  where due_at is not null and dismissed_at is null;
 
 alter table public.assignments enable row level security;
 

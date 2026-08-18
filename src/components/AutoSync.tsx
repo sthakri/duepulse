@@ -2,23 +2,40 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useDuePulseStore } from "@/lib/store";
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const VISIBILITY_COOLDOWN_MS = 5 * 60 * 1000;
 
 export default function AutoSync() {
   const router = useRouter();
+  const setTokenExpired = useDuePulseStore((s) => s.setTokenExpired);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSyncRef = useRef<number>(0);
+  const stoppedRef = useRef(false);
 
   useEffect(() => {
     async function sync() {
+      if (stoppedRef.current) return;
       try {
         const res = await fetch("/api/canvas/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
         });
-        if (res.ok) router.refresh();
+        if (res.status === 401) {
+          const data = (await res.json()) as { tokenExpired?: boolean };
+          if (data.tokenExpired) {
+            setTokenExpired(true);
+            stopPolling();
+            stoppedRef.current = true;
+            console.log("[auto-sync] Canvas token expired — stopping auto-sync");
+          }
+          return;
+        }
+        if (res.ok) {
+          setTokenExpired(false);
+          router.refresh();
+        }
       } catch {
         // Silent fail - don't bother the user
       }
@@ -47,7 +64,7 @@ export default function AutoSync() {
     function handleVisibilityChange() {
       if (!document.hidden) {
         syncWithCooldown();
-        startPolling();
+        if (!stoppedRef.current) startPolling();
       } else {
         stopPolling();
       }
@@ -62,7 +79,7 @@ export default function AutoSync() {
       stopPolling();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [router]);
+  }, [router, setTokenExpired]);
 
   return null;
 }

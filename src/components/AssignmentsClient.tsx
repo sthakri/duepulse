@@ -106,7 +106,7 @@ export default function AssignmentsClient({ assignments, hasCanvas, userTz }: Pr
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((a) => (
-            <AssignmentCard key={a.id} title={a.title} course_name={a.courses?.name ?? "Unknown Course"} due_at={a.due_at} points_possible={a.points_possible !== null ? Number(a.points_possible) : null} canvas_assignment_id={String(a.canvas_assignment_id)} course_color={a.courses?.color ?? "#6366F1"} userTz={userTz} />
+            <AssignmentCard key={a.id} id={a.id} title={a.title} course_name={a.courses?.name ?? "Unknown Course"} due_at={a.due_at} points_possible={a.points_possible !== null ? Number(a.points_possible) : null} canvas_assignment_id={String(a.canvas_assignment_id)} course_color={a.courses?.color ?? "#6366F1"} userTz={userTz} />
           ))}
         </div>
       )}
