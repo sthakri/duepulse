@@ -4,7 +4,7 @@ import { z } from "zod";
 export const env = createEnv({
   server: {
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-    CANVAS_PERSONAL_TOKEN: z.string().min(1),
+    CANVAS_PERSONAL_TOKEN: z.string().min(1).optional(),
     CANVAS_DOMAIN: z.string().min(1),
     NIM_API_KEY: z.string().min(1),
     VAPID_PRIVATE_KEY: z.string().min(1),
