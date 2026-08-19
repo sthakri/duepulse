@@ -97,7 +97,7 @@ export default function OnboardingWizard({ userEmail }: { userEmail?: string }) 
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase.from("profiles").upsert({ id: user.id, onboarding_complete: true });
-      fetch("/api/canvas/sync", { method: "POST" });
+      fetch("/api/canvas/sync?source=manual", { method: "POST" });
     }
     router.push("/dashboard");
   }

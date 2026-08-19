@@ -17,8 +17,8 @@ export default function TokenExpiredBanner() {
         <div className="flex items-center gap-2.5 text-sm">
           <AlertCircle size={16} className="shrink-0 text-[#EF4444]" />
           <p className="text-[#F8FAFC]">
-            <span className="font-semibold text-[#EF4444]">Canvas token expired.</span>{" "}
-            <span className="text-[#CBD5E1]">Generate a new token in Canvas → Account → Settings → New Access Token and reconnect.</span>
+            <span className="font-semibold text-[#EF4444]">Canvas connection issue.</span>{" "}
+            <span className="text-[#CBD5E1]">Your Canvas token is invalid or expired — reconnect your account to resume syncing.</span>
           </p>
         </div>
         <div className="flex items-center gap-3">

@@ -15,12 +15,21 @@ export default function SyncNowButton() {
   async function handleSync() {
     setIsSyncing(true);
     try {
-      const res = await fetch("/api/canvas/sync", { method: "POST" });
-      const data = (await res.json()) as { success?: boolean; error?: string; synced?: number; tokenExpired?: boolean };
+      const res = await fetch("/api/canvas/sync?source=manual", { method: "POST" });
+      const data = (await res.json()) as {
+        success?: boolean;
+        error?: string;
+        synced?: number;
+        tokenExpired?: boolean;
+        decryptFailed?: boolean;
+      };
       if (!res.ok) {
-        if (res.status === 401 && data.tokenExpired) {
+        if (res.status === 401 && (data.tokenExpired || data.decryptFailed)) {
           setTokenExpired(true);
-          toast.error("Canvas token expired — regenerate and reconnect", {
+          const message = data.decryptFailed
+            ? "Could not decrypt Canvas token — please reconnect your account"
+            : "Canvas token expired — regenerate and reconnect";
+          toast.error(message, {
             action: { label: "Reconnect", onClick: () => router.push("/onboarding") },
           });
         } else {

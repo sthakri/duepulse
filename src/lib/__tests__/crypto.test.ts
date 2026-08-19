@@ -66,12 +66,12 @@ describe("crypto", () => {
       expect(result).toBe(plain);
     });
 
-    it("returns raw if decryption fails (wrong key)", async () => {
+    it("returns null if decryption fails (wrong key)", async () => {
       const plain = "3~sometokenthatworks";
       const ct = await encrypt(plain);
       mockEnv.ENCRYPTION_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdiffkey!!";
       const result = await decryptOrRaw(ct);
-      expect(result).toBe(ct);
+      expect(result).toBeNull();
     });
   });
 });

@@ -1,22 +1,32 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { getCanvasAssignments, getCanvasCourses, CanvasCourse, CanvasAuthError } from "@/lib/canvas";
-import { decryptOrRaw, encrypt, isLikelyEncrypted } from "@/lib/crypto";
+import { decryptOrRaw } from "@/lib/crypto";
 import { Database } from "@/database.types";
 
-const ratelimit = new Ratelimit({
+const autoRatelimit = new Ratelimit({
   redis: new Redis({
     url: env.UPSTASH_REDIS_REST_URL,
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
-  limiter: Ratelimit.slidingWindow(30, "1 h"),
+  limiter: Ratelimit.slidingWindow(20, "1 h"),
+  prefix: "ratelimit:sync:auto",
 });
 
-export async function POST() {
+const manualRatelimit = new Ratelimit({
+  redis: new Redis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  }),
+  limiter: Ratelimit.slidingWindow(10, "1 h"),
+  prefix: "ratelimit:sync:manual",
+});
+
+export async function POST(req: NextRequest) {
   // ── 1. Authenticate via session cookie — never trust body.userId ──────────
   const supabase = await createClient();
   const {
@@ -29,8 +39,10 @@ export async function POST() {
 
   const userId = user.id;
 
-  // ── 2. Rate-limit by the verified user ID ─────────────────────────────────
-  const { success: rateLimitOk } = await ratelimit.limit(userId);
+  // ── 2. Rate-limit by the verified user ID and sync source ─────────────────
+  const source = req.nextUrl.searchParams.get("source") === "auto" ? "auto" : "manual";
+  const limiter = source === "auto" ? autoRatelimit : manualRatelimit;
+  const { success: rateLimitOk } = await limiter.limit(userId);
   if (!rateLimitOk) {
     return NextResponse.json(
       { error: "Too many syncs. Try again later." },
@@ -57,13 +69,15 @@ export async function POST() {
   const token = await decryptOrRaw(profile.canvas_token);
   const domain = profile.canvas_domain;
 
-  if (!isLikelyEncrypted(profile.canvas_token)) {
-    encrypt(profile.canvas_token).then(async (ct) => {
-      try {
-        await supabase.from("profiles").update({ canvas_token: ct }).eq("id", userId);
-        console.log(`Auto-encrypted canvas_token for ${userId}`);
-      } catch {}
-    });
+  if (!token) {
+    return NextResponse.json(
+      {
+        success: false,
+        decryptFailed: true,
+        error: "Could not decrypt stored Canvas token. Please reconnect your Canvas account.",
+      },
+      { status: 401 }
+    );
   }
 
   // ── 4. Fetch courses (for names) and assignments from Canvas ──────────────

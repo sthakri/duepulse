@@ -50,11 +50,11 @@ export function isLikelyEncrypted(token: string): boolean {
   }
 }
 
-export async function decryptOrRaw(token: string): Promise<string> {
+export async function decryptOrRaw(token: string): Promise<string | null> {
   if (!isLikelyEncrypted(token)) return token;
   try {
     return await decrypt(token);
   } catch {
-    return token;
+    return null;
   }
 }
