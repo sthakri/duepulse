@@ -1,7 +1,7 @@
 import { schedules } from "@trigger.dev/sdk/v3"
 import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
-import { generateNudge } from "@/lib/nim"
+import { generateNudge, generateProductiveWindowNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
 import { getLocalHour, getLocalDay, getDefaultTimezone } from "@/lib/time"
 import type { Database } from "@/database.types"
@@ -11,10 +11,8 @@ import ws from "ws"
 // ── Deadline threshold definitions ────────────────────────────────────────────
 type DeadlineType = "12h" | "6h" | "1h"
 
-// ponytail: pure helper lives in src/lib/overdue-dedup.ts so it can be
-// unit-tested without loading env vars. Re-exported here for local use.
-import { filterNeverNudgedOverdue } from "@/lib/overdue-dedup";
-export { filterNeverNudgedOverdue };
+import { filterDailyOverdueNudge, filterNeverNudgedOverdue } from "@/lib/overdue-dedup";
+export { filterDailyOverdueNudge, filterNeverNudgedOverdue };
 
 const DEADLINE_THRESHOLDS: Array<{
   type: DeadlineType
@@ -210,7 +208,7 @@ export const nudgeEngine = schedules.task({
           return
         }
 
-        // Fetch up to 3 upcoming incomplete assignments due within 14 days (pass nearest to NIM).
+        // Fetch up to 5 upcoming incomplete assignments due within 14 days for workload context.
         const { data: assignments, error: assignmentsError } = await serviceClient
           .from("assignments")
           .select("id, title, due_at, courses(name)")
@@ -220,7 +218,7 @@ export const nudgeEngine = schedules.task({
           .gt("due_at", now.toISOString())
           .lt("due_at", fourteenDaysFromNow.toISOString())
           .order("due_at", { ascending: true })
-          .limit(3)
+          .limit(5)
 
         if (assignmentsError) {
           console.error(`[nudge-engine] Section A uid=${userId} assignments query error:`, assignmentsError)
@@ -229,19 +227,19 @@ export const nudgeEngine = schedules.task({
         console.log(`[nudge-engine] Section A uid=${userId} upcoming assignments (14d window): ${assignments?.length ?? 0}`)
         if (!assignments || assignments.length === 0) return
 
-        const nearest = assignments[0]
-        if (!nearest.due_at) return
+        const userTz = tzByUser.get(userId) ?? getDefaultTimezone()
+        const upcomingList = assignments.map((a) => ({
+          title: a.title,
+          courseName: (a.courses as { name: string } | null)?.name,
+          dueAt: a.due_at,
+        }))
 
-        const courseName =
-          (nearest.courses as { name: string } | null)?.name ?? "Unknown Course"
-
-        console.log(`[nudge-engine] Section A uid=${userId} calling generateNudge for "${nearest.title}" (${courseName})`)
-        const nudgeText = await generateNudge(
-          nearest.title,
-          nearest.due_at,
-          courseName,
-          tzByUser.get(userId) ?? getDefaultTimezone(),
-        )
+        console.log(`[nudge-engine] Section A uid=${userId} calling generateProductiveWindowNudge (${upcomingList.length} tasks)`)
+        const nudgeText = await generateProductiveWindowNudge({
+          upcomingAssignments: upcomingList,
+          totalPendingCount: assignments.length,
+          userTz,
+        })
         console.log(`[nudge-engine] Section A uid=${userId} nudge text: "${nudgeText}"`)
 
         // Send to ALL devices for this user.
@@ -251,7 +249,7 @@ export const nudgeEngine = schedules.task({
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           }
           try {
-            await sendPushNotification(subscription, nudgeText)
+            await sendPushNotification(subscription, nudgeText, "Peak Focus Window ⚡")
             console.log(`[nudge-engine] Section A uid=${userId} push sent to ${sub.endpoint.slice(0, 50)}… ✓`)
           } catch (err: unknown) {
             const statusCode = (err as { statusCode?: number })?.statusCode
@@ -266,9 +264,10 @@ export const nudgeEngine = schedules.task({
         }
         productiveWindowSent++
 
+        const nearest = assignments[0]
         await serviceClient.from("nudge_logs").insert({
           user_id: userId,
-          assignment_id: nearest.id,
+          assignment_id: nearest?.id ?? null,
           nudge_type: "productive_window",
           sent_at: now.toISOString(),
         })
@@ -420,11 +419,10 @@ export const nudgeEngine = schedules.task({
 
     // ── Section D: Overdue reminders ──────────────────────────────────────────
     // For each user with push subs, find incomplete past-due assignments and
-    // nudge EXACTLY ONCE per assignment, ever. Fires even in minimal mode
-    // (overdue is existential). Quiet hours and pause still honored.
-    // The partial unique index nudge_logs_dedup(backstops) — once an overdue
-    // log exists for (user_id, assignment_id, 'overdue'), it never inserts again.
+    // nudge AT MOST ONCE A DAY (every 24 hours) per assignment until completed.
+    // Fires even in minimal mode (overdue is existential). Quiet hours and pause still honored.
     let overdueSent = 0
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
     console.log(`[nudge-engine] Section D: processing ${allSubs.length} push subscription(s) for overdue`)
     const sectionDResults = await Promise.allSettled(
@@ -461,18 +459,19 @@ export const nudgeEngine = schedules.task({
         }
         if (!overdueAssignments || overdueAssignments.length === 0) return
 
-        // Once-ever dedup: skip any assignment that already has ANY overdue log.
+        // 24-hour daily dedup: skip any assignment nudged within the last 24 hours.
         const assignmentIds = overdueAssignments.map((a) => a.id)
         const { data: existingOverdueLogs } = await serviceClient
           .from("nudge_logs")
-          .select("assignment_id")
+          .select("assignment_id, sent_at")
           .eq("user_id", userId)
           .eq("nudge_type", "overdue")
           .in("assignment_id", assignmentIds)
+          .gte("sent_at", twentyFourHoursAgo.toISOString())
 
-        const toNudge = filterNeverNudgedOverdue(overdueAssignments, existingOverdueLogs ?? [])
+        const toNudge = filterDailyOverdueNudge(overdueAssignments, existingOverdueLogs ?? [], now)
         if (toNudge.length === 0) {
-          console.log(`[nudge-engine] Section D uid=${userId} all overdue already nudged once — skipping`)
+          console.log(`[nudge-engine] Section D uid=${userId} all overdue already nudged within last 24h — skipping`)
           return
         }
 
@@ -506,12 +505,10 @@ export const nudgeEngine = schedules.task({
             continue
           }
 
-          // ponytail: onConflict 'ignoreAll' is the DB-level backstop. Once the
-          // partial unique index has (user,assignment,'overdue'), this is a no-op.
           await serviceClient.from("nudge_logs")
             .upsert(
               { user_id: userId, assignment_id: a.id, nudge_type: "overdue", sent_at: now.toISOString() },
-              { onConflict: "user_id,assignment_id,nudge_type", ignoreDuplicates: true }
+              { onConflict: "user_id,assignment_id,nudge_type" }
             )
         }
       }),

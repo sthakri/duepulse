@@ -21,11 +21,10 @@ export default async function AssignmentsPage() {
   const [{ data: assignments }, { data: profile }] = await Promise.all([
     supabase
       .from("assignments")
-      .select("id, title, due_at, points_possible, canvas_assignment_id, course_id, courses(name, color)")
+      .select("id, title, due_at, points_possible, canvas_assignment_id, course_id, is_completed, courses(name, color)")
       .eq("user_id", userId)
-      .eq("is_completed", false)
       .is("dismissed_at", null)
-      .or(`due_at.is.null,and(due_at.gte.${fourteenDaysAgo.toISOString()},due_at.lte.${fourteenDaysFromNow.toISOString()})`)
+      .or(`due_at.is.null,and(due_at.gte.${fourteenDaysAgo.toISOString()},due_at.lte.${fourteenDaysFromNow.toISOString()}),and(is_completed.eq.true,updated_at.gte.${fourteenDaysAgo.toISOString()})`)
       .order("due_at", { ascending: true, nullsFirst: false }),
     supabase.from("profiles").select("canvas_token, canvas_domain, timezone, updated_at").eq("id", userId).single(),
   ]);

@@ -1,14 +1,29 @@
-// ponytail: pure helper for Section D overdue dedup, extracted so it can be
-// unit-tested without loading env vars or Trigger.dev. Spec: an overdue
-// assignment gets exactly one nudge — any matching log row disqualifies it.
-export function filterNeverNudgedOverdue<
+/**
+ * Deduplication helper for overdue assignment notifications.
+ * Spec: Once an assignment is overdue and uncompleted, send a notification
+ * once a day (not more than once every 24 hours).
+ */
+export function filterDailyOverdueNudge<
   A extends { id: string },
-  L extends { assignment_id: string | null },
->(assignments: A[], existingLogs: L[]): A[] {
-  const alreadyNudged = new Set(
-    existingLogs
-      .map((l) => l.assignment_id)
-      .filter((x): x is string => x !== null),
+  L extends { assignment_id: string | null; sent_at?: string },
+>(
+  assignments: A[],
+  recentLogs: L[],
+  now: Date = new Date(),
+  windowMs: number = 24 * 60 * 60 * 1000,
+): A[] {
+  const recentThreshold = now.getTime() - windowMs;
+  const recentlyNudged = new Set(
+    recentLogs
+      .filter((l) => {
+        if (!l.assignment_id) return false;
+        if (!l.sent_at) return true; // If sent_at not specified, treated as recent
+        return new Date(l.sent_at).getTime() >= recentThreshold;
+      })
+      .map((l) => l.assignment_id as string),
   );
-  return assignments.filter((a) => !alreadyNudged.has(a.id));
+  return assignments.filter((a) => !recentlyNudged.has(a.id));
 }
+
+/** Backward-compatible alias for existing imports */
+export const filterNeverNudgedOverdue = filterDailyOverdueNudge;

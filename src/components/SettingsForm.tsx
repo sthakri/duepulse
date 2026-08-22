@@ -11,7 +11,23 @@ type SettingsFormProps = {
   initialFrequency: string;
   initialThreshold: number;
   initialPausedUntil: string | null;
+  initialTimezone?: string;
 };
+
+const COMMON_TIMEZONES = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "Europe/London",
+  "Europe/Paris",
+  "Asia/Tokyo",
+  "Asia/Kolkata",
+  "Australia/Sydney",
+  "UTC",
+];
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
@@ -59,12 +75,14 @@ export default function SettingsForm({
   initialFrequency,
   initialThreshold,
   initialPausedUntil,
+  initialTimezone = "America/Chicago",
 }: SettingsFormProps) {
   const [quietEnabled, setQuietEnabled] = useState(initialQuietStart !== null && initialQuietEnd !== null);
   const [quietStart, setQuietStart] = useState(initialQuietStart ?? 22);
   const [quietEnd, setQuietEnd] = useState(initialQuietEnd ?? 8);
   const [frequency, setFrequency] = useState(initialFrequency);
   const [threshold, setThreshold] = useState(initialThreshold);
+  const [timezone, setTimezone] = useState(initialTimezone);
   const [isPending, startTransition] = useTransition();
   const [isPausing, startPauseTransition] = useTransition();
   const [isPaused, setIsPaused] = useState(false);
@@ -98,6 +116,7 @@ export default function SettingsForm({
     formData.set("quiet_hours_end", String(quietEnd));
     formData.set("nudge_frequency", frequency);
     formData.set("stress_threshold", String(threshold));
+    formData.set("timezone", timezone);
     startTransition(async () => {
       const result = await saveSettings(formData);
       if (result.error) toast.error(result.error);
@@ -195,7 +214,45 @@ export default function SettingsForm({
           </div>
         </Section>
 
-        <div className="flex justify-end">
+        {/* Timezone */}
+        <Section title="Timezone">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-[#94A3B8] text-sm">Used for deadline timing, quiet hours, and productive windows</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                    if (detected) {
+                      setTimezone(detected);
+                      toast.success(`Timezone set to ${detected}`);
+                    }
+                  }
+                }}
+                className="text-xs text-[#818CF8] hover:text-[#6366F1] font-medium transition-colors"
+              >
+                Auto-detect timezone
+              </button>
+            </div>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className={selectCls}
+            >
+              {!COMMON_TIMEZONES.includes(timezone) && (
+                <option value={timezone}>{timezone} (Current)</option>
+              )}
+              {COMMON_TIMEZONES.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Section>
+
+        <div className="flex justify-end mt-5">
           <button type="submit" disabled={isPending} className="rounded-xl bg-[#6366F1] hover:bg-[#818CF8] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm px-6 py-2.5 transition-colors shadow-[0_8px_25px_rgba(99,102,241,0.25)]">
             {isPending ? "Saving…" : "Save Settings"}
           </button>

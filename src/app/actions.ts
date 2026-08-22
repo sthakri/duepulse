@@ -14,6 +14,7 @@ export async function saveNotificationSettings(
   const quietEnd = quietEnabled ? Number(formData.get("quiet_hours_end")) : null;
   const nudgeFrequency = (formData.get("nudge_frequency") as string) || "normal";
   const stressThreshold = Math.max(1, Math.min(20, Number(formData.get("stress_threshold")) || 5));
+  const timezone = (formData.get("timezone") as string) || undefined;
 
   const { error } = await supabase
     .from("profiles")
@@ -23,6 +24,7 @@ export async function saveNotificationSettings(
       nudge_frequency: nudgeFrequency,
       stress_threshold: stressThreshold,
       updated_at: new Date().toISOString(),
+      ...(timezone ? { timezone } : {}),
     })
     .eq("id", user.id);
 

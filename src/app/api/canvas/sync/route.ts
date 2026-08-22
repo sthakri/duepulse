@@ -13,7 +13,7 @@ const autoRatelimit = new Ratelimit({
     url: env.UPSTASH_REDIS_REST_URL,
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
-  limiter: Ratelimit.slidingWindow(20, "1 h"),
+  limiter: Ratelimit.slidingWindow(60, "1 h"),
   prefix: "ratelimit:sync:auto",
 });
 
@@ -22,7 +22,7 @@ const manualRatelimit = new Ratelimit({
     url: env.UPSTASH_REDIS_REST_URL,
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
-  limiter: Ratelimit.slidingWindow(10, "1 h"),
+  limiter: Ratelimit.slidingWindow(30, "1 h"),
   prefix: "ratelimit:sync:manual",
 });
 

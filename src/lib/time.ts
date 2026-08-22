@@ -33,19 +33,22 @@ export function getLocalDay(date: Date, tz: string): number {
 }
 
 export function formatLocalHour(hour: number, tz?: string): string {
-  const date = new Date(2000, 0, 1, hour, 0, 0);
-  const time = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    hour12: true,
-  }).format(date);
-  if (!tz) return time;
-  const abbr = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    timeZoneName: "short",
-  })
-    .formatToParts(new Date())
-    .find((p) => p.type === "timeZoneName")?.value ?? "";
-  return `${time} ${abbr}`;
+  const normHour = ((hour % 24) + 24) % 24;
+  const period = normHour >= 12 ? "PM" : "AM";
+  const h12 = normHour === 0 ? 12 : normHour > 12 ? normHour - 12 : normHour;
+  const timeStr = `${h12} ${period}`;
+  if (!tz) return timeStr;
+  try {
+    const abbr = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      timeZoneName: "short",
+    })
+      .formatToParts(new Date())
+      .find((p) => p.type === "timeZoneName")?.value ?? "";
+    return abbr ? `${timeStr} ${abbr}` : timeStr;
+  } catch {
+    return timeStr;
+  }
 }
 
 export function getDayRange(date: Date, tz: string, days: number): string[] {

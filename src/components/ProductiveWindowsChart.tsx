@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import * as d3 from "d3";
 import { formatLocalHour } from "@/lib/time";
 
 interface Props {
@@ -16,58 +18,118 @@ function hourEmoji(h: number): string {
 }
 
 export default function ProductiveWindowsChart({ data, userTz }: Props) {
-  if (data.length < 5) {
-    return (
-      <div className="rounded-[18px] bg-[#1E293B] border border-[#334155]/70 p-5">
-        <h2 className="text-[#F8FAFC] font-semibold text-sm">Best Time to Review</h2>
-        <p className="text-[#64748B] text-xs mt-1 mb-3">When you&apos;re most active on DuePulse</p>
-        <p className="text-[#94A3B8] text-sm">
-          DuePulse is learning your focus patterns. Check back after a few more visits.
-        </p>
-      </div>
-    );
-  }
+  const svgRef = useRef<SVGSVGElement>(null);
 
-  const hourTotals = new Map<number, number>();
-  for (const row of data) {
-    hourTotals.set(row.hour_of_day, (hourTotals.get(row.hour_of_day) ?? 0) + row.score);
-  }
-  const aggregated = Array.from(hourTotals.entries()).sort((a, b) => b[1] - a[1]);
+  // Aggregate scores by hour 0..23
+  const hourlyScores = Array.from({ length: 24 }, (_, h) => {
+    const total = data
+      .filter((r) => r.hour_of_day === h)
+      .reduce((sum, r) => sum + r.score, 0);
+    return { hour: h, score: total };
+  });
 
-  const topHour = aggregated[0][0];
-  const runnerUps = aggregated.slice(1, 3).map(([h]) => h);
+  const maxScore = Math.max(...hourlyScores.map((d) => d.score), 0);
+  const topHourItem = [...hourlyScores].sort((a, b) => b.score - a.score)[0];
+  const peakHour = maxScore > 0 ? topHourItem?.hour ?? null : null;
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
+
+    const width = 360;
+    const height = 140;
+    const margin = { top: 12, right: 10, bottom: 26, left: 10 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    const g = svg
+      .attr("viewBox", `0 0 ${width} ${height}`)
+      .attr("width", "100%")
+      .attr("height", "100%")
+      .append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const xScale = d3
+      .scaleBand()
+      .domain(d3.range(24).map(String))
+      .range([0, innerWidth])
+      .padding(0.2);
+
+    const yScale = d3
+      .scaleLinear()
+      .domain([0, Math.max(maxScore, 0.05)])
+      .range([innerHeight, 0]);
+
+    // Background grid / bars
+    g.selectAll(".bar-bg")
+      .data(hourlyScores)
+      .enter()
+      .append("rect")
+      .attr("class", "bar-bg")
+      .attr("x", (d) => xScale(String(d.hour)) ?? 0)
+      .attr("y", 0)
+      .attr("width", xScale.bandwidth())
+      .attr("height", innerHeight)
+      .attr("fill", "rgba(36, 48, 68, 0.4)")
+      .attr("rx", 2);
+
+    // Active bars
+    g.selectAll(".bar-fill")
+      .data(hourlyScores)
+      .enter()
+      .append("rect")
+      .attr("class", "bar-fill")
+      .attr("x", (d) => xScale(String(d.hour)) ?? 0)
+      .attr("y", (d) => yScale(d.score))
+      .attr("width", xScale.bandwidth())
+      .attr("height", (d) => Math.max(innerHeight - yScale(d.score), d.score > 0 ? 2 : 0))
+      .attr("fill", (d) => (d.hour === peakHour ? "#818CF8" : "#6366F1"))
+      .attr("opacity", (d) => (d.hour === peakHour ? 1 : d.score > 0 ? 0.75 : 0.1))
+      .attr("rx", 2)
+      .append("title")
+      .text((d) => `${formatLocalHour(d.hour, userTz)}: ${(d.score * 100).toFixed(0)} activity score`);
+
+    // Hour ticks: 0, 6, 12, 18
+    const tickHours = [0, 6, 12, 18, 23];
+    tickHours.forEach((h) => {
+      const x = (xScale(String(h)) ?? 0) + xScale.bandwidth() / 2;
+      g.append("text")
+        .attr("x", x)
+        .attr("y", innerHeight + 16)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#64748B")
+        .attr("font-size", "10px")
+        .attr("font-family", "inherit")
+        .text(`${h}h`);
+    });
+  }, [hourlyScores, maxScore, peakHour, userTz]);
 
   return (
-    <div className="rounded-[18px] bg-[#1E293B] border border-[#334155]/70 p-5">
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-[#F8FAFC] font-semibold text-sm">⏰ Best Time to Review</h3>
-          <p className="text-[#64748B] text-xs mt-0.5">When you&apos;re most active on DuePulse</p>
+    <div className="rounded-[18px] bg-[#1E293B] border border-[#334155]/70 p-5 flex flex-col justify-between">
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-[#F8FAFC] font-semibold text-sm flex items-center gap-1.5">
+            <span>{peakHour !== null ? hourEmoji(peakHour) : "⏰"}</span> Best Time to Review
+          </h3>
+          {peakHour !== null && (
+            <span className="text-[#818CF8] text-xs font-semibold bg-[#6366F1]/10 border border-[#6366F1]/20 px-2 py-0.5 rounded-full">
+              Peak: {formatLocalHour(peakHour, userTz)}
+            </span>
+          )}
         </div>
-
-        {/* Peak hour highlight */}
-        <div className="bg-[#243044] border border-[#6366F1]/20 rounded-xl p-4 text-center">
-          <div className="text-2xl mb-1">{hourEmoji(topHour)}</div>
-          <div className="text-[#F8FAFC] font-bold text-xl">{formatLocalHour(topHour, userTz)}</div>
-          <div className="text-[#818CF8] text-xs mt-1 font-medium">Your peak focus hour</div>
-        </div>
-
-        {/* Runner-ups */}
-        {runnerUps.length > 0 && (
-          <div>
-            <p className="text-[#64748B] text-xs mb-2">Also active at:</p>
-            <div className="flex gap-2">
-              {runnerUps.map((h) => (
-                <span key={h} className="bg-[#243044] border border-[#334155] text-[#94A3B8] text-xs rounded-lg px-3 py-1.5 font-medium">
-                  {formatLocalHour(h, userTz)}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <p className="text-[#64748B] text-xs">Updates every time you open DuePulse</p>
+        <p className="text-[#64748B] text-xs mb-3">24-hour activity distribution (D3 Chart)</p>
       </div>
+
+      <div className="w-full my-2">
+        <svg ref={svgRef} className="w-full h-32 overflow-visible" />
+      </div>
+
+      <p className="text-[#64748B] text-[11px] mt-1">
+        {peakHour !== null
+          ? `You are most active around ${formatLocalHour(peakHour, userTz)}.`
+          : "Activity records automatically every time you visit DuePulse."}
+      </p>
     </div>
   );
 }

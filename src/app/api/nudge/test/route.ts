@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
-import { generateNudge } from "@/lib/nim"
+import { generateNudge, generateProductiveWindowNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
 import { getDefaultTimezone } from "@/lib/time"
 import { nudgeTestQuerySchema } from "@/lib/validations"
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
         keys: { p256dh: sub.p256dh, auth: sub.auth },
       }
       try {
-        await sendPushNotification(subscription, nudgeText, "Overdue Assignment 📌")
+        await sendPushNotification(subscription, nudgeText, "Overdue Reminder 📌")
         results.push(`✓ ${sub.endpoint.slice(0, 50)}…`)
       } catch (err: unknown) {
         const statusCode = (err as { statusCode?: number })?.statusCode
@@ -142,25 +142,23 @@ export async function GET(req: NextRequest) {
 
   // ── Productive window nudge ──────────────────────────────────────────────────
   if (type === "productive_window") {
-    const fiveDaysFromNow = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000)
+    const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
 
-    const { data: assignment } = await serviceClient
+    const { data: assignments } = await serviceClient
       .from("assignments")
       .select("id, title, due_at, courses(name)")
       .eq("user_id", userId)
       .eq("is_completed", false)
       .gt("due_at", now.toISOString())
-      .lt("due_at", fiveDaysFromNow.toISOString())
+      .lt("due_at", fourteenDaysFromNow.toISOString())
       .order("due_at", { ascending: true })
-      .limit(1)
-      .maybeSingle()
+      .limit(5)
 
-    if (!assignment || !assignment.due_at) {
-      return NextResponse.json({ error: "No upcoming assignment found" }, { status: 400 })
-    }
-
-    const courseName =
-      (assignment.courses as { name: string } | null)?.name ?? "Unknown Course"
+    const upcomingList = (assignments ?? []).map((a) => ({
+      title: a.title,
+      courseName: (a.courses as { name: string } | null)?.name,
+      dueAt: a.due_at,
+    }))
 
     // Fetch user's timezone for accurate local time in the nudge text.
     const { data: profile } = await serviceClient
@@ -170,12 +168,11 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
     const userTz = profile?.timezone ?? getDefaultTimezone()
 
-    const nudgeText = await generateNudge(
-      assignment.title,
-      assignment.due_at,
-      courseName,
+    const nudgeText = await generateProductiveWindowNudge({
+      upcomingAssignments: upcomingList,
+      totalPendingCount: upcomingList.length,
       userTz,
-    )
+    })
 
     // Send to ALL devices for this user.
     const results: string[] = []
@@ -185,7 +182,7 @@ export async function GET(req: NextRequest) {
         keys: { p256dh: sub.p256dh, auth: sub.auth },
       }
       try {
-        await sendPushNotification(subscription, nudgeText)
+        await sendPushNotification(subscription, nudgeText, "Peak Focus Window ⚡")
         results.push(`✓ ${sub.endpoint.slice(0, 50)}…`)
       } catch (err: unknown) {
         const statusCode = (err as { statusCode?: number })?.statusCode
@@ -198,14 +195,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const firstAssignment = assignments?.[0]
     await serviceClient.from("nudge_logs").insert({
       user_id: userId,
-      assignment_id: assignment.id,
+      assignment_id: firstAssignment?.id ?? null,
       nudge_type: "productive_window",
       sent_at: now.toISOString(),
     })
 
-    return NextResponse.json({ sent: true, type, assignment: assignment.title, nudge: nudgeText, devices: results })
+    return NextResponse.json({
+      sent: true,
+      type,
+      upcomingCount: upcomingList.length,
+      nudge: nudgeText,
+      devices: results,
+    })
   }
 
   // ── Deadline nudge (12h / 6h / 1h) ──────────────────────────────────────────

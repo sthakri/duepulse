@@ -24,6 +24,11 @@ export const dismissAssignmentSchema = z.object({
   assignmentId: z.string().uuid(),
 });
 
+export const completeAssignmentSchema = z.object({
+  assignmentId: z.string().uuid(),
+  completed: z.boolean().default(true),
+});
+
 export function validateBody<T>(schema: z.ZodType<T>, body: unknown): [T, null] | [null, string] {
   const result = schema.safeParse(body);
   if (result.success) return [result.data, null];

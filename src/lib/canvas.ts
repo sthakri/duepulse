@@ -93,6 +93,58 @@ export async function getCanvasCourses(
   return courses.filter((c) => c.name && c.name.trim() !== "");
 }
 
+export function isCanvasItemCompleted(item: Record<string, unknown>): boolean {
+  const plannable = item.plannable as Record<string, unknown> | undefined;
+  const submissions = item.submissions;
+  const plannerOverride = item.planner_override as Record<string, unknown> | undefined;
+
+  // 1. Check student planner override (marked complete / dismissed in Canvas UI)
+  if (plannerOverride?.marked_complete === true || plannerOverride?.dismissed === true) {
+    return true;
+  }
+
+  // 2. Check direct submissions boolean
+  if (submissions === true) {
+    return true;
+  }
+
+  // 3. Check submissions object
+  if (typeof submissions === "object" && submissions !== null) {
+    const sub = submissions as Record<string, unknown>;
+    if (sub.submitted === true || sub.has_submission === true || sub.excused === true) {
+      return true;
+    }
+    if (typeof sub.workflow_state === "string") {
+      const state = sub.workflow_state.toLowerCase();
+      if (["submitted", "graded", "pending_review", "complete"].includes(state)) {
+        return true;
+      }
+    }
+  }
+
+  // 4. Check array submissions
+  if (Array.isArray(submissions) && submissions.length > 0) {
+    return submissions.some((s) => {
+      if (typeof s === "object" && s !== null) {
+        const sub = s as Record<string, unknown>;
+        if (sub.submitted === true || sub.has_submission === true || sub.excused === true) return true;
+        if (typeof sub.workflow_state === "string") {
+          const state = sub.workflow_state.toLowerCase();
+          return ["submitted", "graded", "pending_review", "complete"].includes(state);
+        }
+      }
+      return false;
+    });
+  }
+
+  // 5. Check plannable submission status
+  if (plannable?.has_submitted_submissions === true) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function getCanvasAssignments(
   token: string,
   domain: string
@@ -100,10 +152,11 @@ export async function getCanvasAssignments(
   validateCanvasDomain(domain);
 
   const today = new Date();
+  const startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
   const endDate = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
   const params = new URLSearchParams({
     per_page: "100",
-    start_date: today.toISOString(),
+    start_date: startDate.toISOString(),
     end_date: endDate.toISOString(),
   });
 
@@ -119,7 +172,6 @@ export async function getCanvasAssignments(
     )
     .map((item) => {
       const plannable = item.plannable as Record<string, unknown> | undefined;
-      const submissions = item.submissions as Record<string, unknown> | undefined;
       return {
         canvas_assignment_id: Number(item.plannable_id),
         canvas_course_id: Number(item.course_id),
@@ -137,7 +189,7 @@ export async function getCanvasAssignments(
         submission_types: Array.isArray(plannable?.submission_types)
           ? (plannable.submission_types as string[])
           : [],
-        is_completed: submissions?.submitted === true,
+        is_completed: isCanvasItemCompleted(item),
         priority: 3,
       };
     });

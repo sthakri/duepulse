@@ -7,12 +7,22 @@ import SyncNowButton from "@/components/SyncNowButton";
 import { BookOpen, RefreshCw } from "lucide-react";
 
 type Course = { name: string; color: string };
-type Assignment = { id: string; title: string; due_at: string | null; points_possible: number | null; canvas_assignment_id: number; course_id: string; courses: Course | null };
-type Filter = "all" | "overdue" | "due-soon" | "upcoming" | "no-date";
+type Assignment = {
+  id: string;
+  title: string;
+  due_at: string | null;
+  points_possible: number | null;
+  canvas_assignment_id: number;
+  course_id: string;
+  courses: Course | null;
+  is_completed?: boolean;
+};
+type Filter = "all" | "overdue" | "due-soon" | "upcoming" | "no-date" | "completed";
 
 interface Props { assignments: Assignment[]; hasCanvas: boolean; userTz: string }
 
 function classifyAssignment(a: Assignment): Filter {
+  if (a.is_completed) return "completed";
   if (!a.due_at) return "no-date";
   const now = new Date();
   const due = new Date(a.due_at);
@@ -22,22 +32,56 @@ function classifyAssignment(a: Assignment): Filter {
   return "upcoming";
 }
 
-const FILTER_LABELS: Record<Filter, string> = { all: "All", overdue: "Overdue", "due-soon": "Due Soon", upcoming: "Upcoming", "no-date": "No Date" };
-const FILTER_COLORS: Record<Filter, string> = { all: "", overdue: "text-[#EF4444]", "due-soon": "text-[#F59E0B]", upcoming: "text-[#10B981]", "no-date": "text-[#64748B]" };
+const FILTER_LABELS: Record<Filter, string> = {
+  all: "All",
+  overdue: "Overdue",
+  "due-soon": "Due Soon",
+  upcoming: "Upcoming",
+  "no-date": "No Date",
+  completed: "Completed",
+};
+const FILTER_COLORS: Record<Filter, string> = {
+  all: "",
+  overdue: "text-[#EF4444]",
+  "due-soon": "text-[#F59E0B]",
+  upcoming: "text-[#10B981]",
+  "no-date": "text-[#64748B]",
+  completed: "text-[#10B981]",
+};
 
 export default function AssignmentsClient({ assignments, hasCanvas, userTz }: Props) {
   const searchParams = useSearchParams();
   const urlFilter = searchParams.get("filter") as Filter | null;
-  const isValidFilter = urlFilter && ["all","overdue","due-soon","upcoming","no-date"].includes(urlFilter);
+  const isValidFilter = urlFilter && ["all", "overdue", "due-soon", "upcoming", "no-date", "completed"].includes(urlFilter);
   const [activeFilter, setActiveFilter] = useState<Filter>(isValidFilter ? urlFilter : "all");
   const [activeCourse, setActiveCourse] = useState<string | null>(null);
 
-  const courses = Array.from(new Map(assignments.filter((a) => a.courses).map((a) => [a.course_id, a.courses!])).entries()).map(([id, course]) => ({ id, ...course }));
-  const counts: Record<Filter, number> = { all: assignments.length, overdue: 0, "due-soon": 0, upcoming: 0, "no-date": 0 };
-  for (const a of assignments) counts[classifyAssignment(a)]++;
+  const courses = Array.from(
+    new Map(assignments.filter((a) => a.courses).map((a) => [a.course_id, a.courses!])).entries()
+  ).map(([id, course]) => ({ id, ...course }));
+
+  const activeAssignments = assignments.filter((a) => !a.is_completed);
+  const counts: Record<Filter, number> = {
+    all: activeAssignments.length,
+    overdue: 0,
+    "due-soon": 0,
+    upcoming: 0,
+    "no-date": 0,
+    completed: 0,
+  };
+  for (const a of assignments) {
+    counts[classifyAssignment(a)]++;
+  }
 
   const filtered = assignments.filter((a) => {
-    const matchesFilter = activeFilter === "all" || classifyAssignment(a) === activeFilter;
+    let matchesFilter = false;
+    if (activeFilter === "all") {
+      matchesFilter = !a.is_completed;
+    } else if (activeFilter === "completed") {
+      matchesFilter = !!a.is_completed;
+    } else {
+      matchesFilter = !a.is_completed && classifyAssignment(a) === activeFilter;
+    }
     const matchesCourse = !activeCourse || a.course_id === activeCourse;
     return matchesFilter && matchesCourse;
   });
@@ -106,7 +150,18 @@ export default function AssignmentsClient({ assignments, hasCanvas, userTz }: Pr
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((a) => (
-            <AssignmentCard key={a.id} id={a.id} title={a.title} course_name={a.courses?.name ?? "Unknown Course"} due_at={a.due_at} points_possible={a.points_possible !== null ? Number(a.points_possible) : null} canvas_assignment_id={String(a.canvas_assignment_id)} course_color={a.courses?.color ?? "#6366F1"} userTz={userTz} />
+            <AssignmentCard
+              key={a.id}
+              id={a.id}
+              title={a.title}
+              course_name={a.courses?.name ?? "Unknown Course"}
+              due_at={a.due_at}
+              points_possible={a.points_possible !== null ? Number(a.points_possible) : null}
+              canvas_assignment_id={String(a.canvas_assignment_id)}
+              course_color={a.courses?.color ?? "#6366F1"}
+              userTz={userTz}
+              is_completed={a.is_completed ?? false}
+            />
           ))}
         </div>
       )}

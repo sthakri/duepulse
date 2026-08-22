@@ -108,36 +108,38 @@ function findFocusBlock(patterns: DetectedPattern[], userTz?: string): FocusBloc
   const significant = patterns.filter((p) => p.confidence !== "low");
   if (significant.length === 0) return null;
 
-  const hours = significant.map((p) => p.hour).sort((a, b) => a - b);
-  let bestStart = hours[0];
-  let bestEnd = hours[0];
-  let currentStart = hours[0];
+  const hours = Array.from(new Set(significant.map((p) => p.hour))).sort((a, b) => a - b);
+  if (hours.length === 0) return null;
+
+  let maxBlockStart = hours[0];
+  let maxBlockEnd = hours[0];
+  let currStart = hours[0];
+  let currEnd = hours[0];
 
   for (let i = 1; i < hours.length; i++) {
-    if (hours[i] === hours[i - 1] + 1) {
-      if (hours[i] > bestEnd) bestEnd = hours[i];
+    if (hours[i] === currEnd + 1) {
+      currEnd = hours[i];
     } else {
-      if (currentStart !== bestStart || hours[i - 1] !== bestEnd) {
-        if (bestEnd - bestStart < hours[i - 1] - currentStart) {
-          bestStart = currentStart;
-          bestEnd = hours[i - 1];
-        }
+      if (currEnd - currStart > maxBlockEnd - maxBlockStart) {
+        maxBlockStart = currStart;
+        maxBlockEnd = currEnd;
       }
-      currentStart = hours[i];
+      currStart = hours[i];
+      currEnd = hours[i];
     }
   }
 
-  if (bestEnd - bestStart < hours[hours.length - 1] - currentStart) {
-    bestStart = currentStart;
-    bestEnd = hours[hours.length - 1];
+  if (currEnd - currStart > maxBlockEnd - maxBlockStart) {
+    maxBlockStart = currStart;
+    maxBlockEnd = currEnd;
   }
 
-  if (bestEnd - bestStart < 1) return null;
+  if (maxBlockEnd - maxBlockStart < 1) return null;
 
   return {
-    startHour: bestStart,
-    endHour: bestEnd,
-    label: `${formatHour(bestStart, userTz)} – ${formatHour(bestEnd, userTz)}`,
+    startHour: maxBlockStart,
+    endHour: maxBlockEnd,
+    label: `${formatHour(maxBlockStart, userTz)} – ${formatHour(maxBlockEnd, userTz)}`,
   };
 }
 

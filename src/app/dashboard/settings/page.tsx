@@ -71,6 +71,7 @@ export default async function SettingsPage() {
             initialFrequency={profile?.nudge_frequency ?? "normal"}
             initialThreshold={profile?.stress_threshold ?? 5}
             initialPausedUntil={profile?.nudge_paused_until ?? null}
+            initialTimezone={profile?.timezone ?? "America/Chicago"}
           />
 
           {/* Account */}
