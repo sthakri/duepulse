@@ -11,6 +11,7 @@ const ratelimit = new Ratelimit({
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
   limiter: Ratelimit.slidingWindow(30, "1 m"),
+  prefix: "rl:assignments:complete",
 });
 
 export async function POST(req: NextRequest) {

@@ -1,5 +1,22 @@
 import { z } from "zod";
 
+/** IANA timezone that actually works with Intl — invalid zones throw RangeError downstream. */
+export const timezoneSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine(
+    (tz) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "Not a valid IANA timezone" },
+  );
+
 export const canvasTestSchema = z.object({
   token: z.string().min(1).max(512),
   domain: z.string().min(1).max(253),

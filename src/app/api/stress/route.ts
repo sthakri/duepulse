@@ -11,6 +11,7 @@ const ratelimit = new Ratelimit({
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
   limiter: Ratelimit.slidingWindow(20, "1 h"),
+  prefix: "rl:stress",
 });
 
 export async function GET() {

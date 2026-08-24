@@ -11,6 +11,7 @@ const ratelimit = new Ratelimit({
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
   limiter: Ratelimit.slidingWindow(60, "1 m"),
+  prefix: "rl:productive-windows:touch",
 });
 
 export async function POST() {

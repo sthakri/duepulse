@@ -8,11 +8,14 @@ export const env = createEnv({
     CANVAS_DOMAIN: z.string().min(1),
     NIM_API_KEY: z.string().min(1),
     VAPID_PRIVATE_KEY: z.string().min(1),
-    CRON_SECRET: z.string().min(1),
+    CRON_SECRET: z.string().min(1).optional(), // legacy (pre-Trigger.dev cron auth); unused, slated for removal
     UPSTASH_REDIS_REST_URL: z.string().url(),
     UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
     TRIGGER_SECRET_KEY: z.string().min(1),
-    ENCRYPTION_KEY: z.string().min(32),
+    // 44-char padded base64 that decodes to exactly 32 bytes (AES-256 key).
+    // Format pinned; crypto.ts key derivation must stay byte-stable or all
+    // stored Canvas tokens become undecryptable.
+    ENCRYPTION_KEY: z.string().regex(/^[A-Za-z0-9+/]{43}=$/, "ENCRYPTION_KEY must be 32 bytes, base64-encoded (e.g. `openssl rand -base64 32`)"),
     NUDGE_ENABLED: z.enum(["true", "false"]).default("false"),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
     NIM_BASE_URL: z.string().url().default("https://integrate.api.nvidia.com/v1"),

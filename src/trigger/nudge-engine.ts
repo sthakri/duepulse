@@ -1,61 +1,22 @@
-import { schedules } from "@trigger.dev/sdk/v3"
+import { queue, schedules } from "@trigger.dev/sdk/v3"
 import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
 import { generateNudge, generateProductiveWindowNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
-import { getLocalHour, getLocalDay, getDefaultTimezone } from "@/lib/time"
+import { getLocalHour, getLocalDay, getDefaultTimezone, formatClockTime, coerceTimezone } from "@/lib/time"
+import {
+  pickDeadlineThreshold,
+  formatRemaining,
+  buildDeadlineMessage,
+  type DeadlineType,
+  type DeadlineThreshold,
+} from "@/lib/deadline"
 import type { Database } from "@/database.types"
 import webpush from "web-push"
 import ws from "ws"
 
-// ── Deadline threshold definitions ────────────────────────────────────────────
-type DeadlineType = "12h" | "6h" | "1h"
-
 import { filterDailyOverdueNudge, filterNeverNudgedOverdue } from "@/lib/overdue-dedup";
 export { filterDailyOverdueNudge, filterNeverNudgedOverdue };
-
-const DEADLINE_THRESHOLDS: Array<{
-  type: DeadlineType
-  label: string
-  notifTitle: string
-  minMs: number
-  maxMs: number
-}> = [
-  {
-    type: "12h",
-    label: "~12 hours",
-    notifTitle: "Due in ~12 Hours ⏰",
-    minMs: 11 * 3_600_000,
-    maxMs: 13 * 3_600_000,
-  },
-  {
-    type: "6h",
-    label: "~6 hours",
-    notifTitle: "Due in ~6 Hours ⚡",
-    minMs: 5 * 3_600_000,
-    maxMs: 7 * 3_600_000,
-  },
-  {
-    type: "1h",
-    label: "1 hour",
-    notifTitle: "Due in 1 Hour 🚨",
-    minMs: 30 * 60_000,
-    maxMs: 90 * 60_000,
-  },
-]
-
-function buildDeadlineMessage(
-  assignments: { title: string }[],
-  label: string,
-): string {
-  if (assignments.length === 1)
-    return `${assignments[0].title} is due in ${label}!`
-  if (assignments.length === 2)
-    return `${assignments[0].title} and ${assignments[1].title} are due in ${label}!`
-  const rest = assignments.length - 2
-  return `${assignments[0].title}, ${assignments[1].title}, and ${rest} more due in ${label}!`
-}
-
 
 function isInQuietHours(
   start: number | null,
@@ -63,16 +24,22 @@ function isInQuietHours(
   localHour: number,
 ): boolean {
   if (start === null || end === null) return false
-  if (start === end) return localHour === start
+  if (start === end) return false // equal start/end = "off", not "quiet for one hour"
   if (start < end) return localHour >= start && localHour < end
   return localHour >= start || localHour < end
 }
+
+// Serial queue: the 15-min cron can otherwise overlap with a long-running
+// previous run (NIM timeouts are 30s each), and the claim-then-send dedup only
+// holds if exactly one run is in flight at a time.
+const nudgeQueue = queue({ name: "nudge-engine", concurrencyLimit: 1 })
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const nudgeEngine = schedules.task({
   id: "send-nudges",
-  cron: "0 * * * *",
+  cron: "*/15 * * * *", // every 15 min (UTC) — deadline nudges land within ~15 min of intended time
+  queue: nudgeQueue,
   run: async () => {
     if (env.NUDGE_ENABLED !== "true") {
       console.log("[nudge-engine] Nudges disabled (NUDGE_ENABLED != true). Skipping.")
@@ -131,7 +98,13 @@ export const nudgeEngine = schedules.task({
       (userProfiles ?? []).map((p) => [p.id, p]),
     )
     const tzByUser = new Map(
-      (userProfiles ?? []).map((p) => [p.id, p.timezone ?? getDefaultTimezone()]),
+      (userProfiles ?? []).map((p) => {
+        const coerced = coerceTimezone(p.timezone)
+        if (p.timezone && coerced !== p.timezone) {
+          console.warn(`[nudge-engine] uid=${p.id} has invalid timezone "${p.timezone}" — using ${coerced}`)
+        }
+        return [p.id, coerced]
+      }),
     )
 
     // Key: "${day_of_week}:${hour_of_day}" — must match both day AND hour, not just hour.
@@ -195,16 +168,17 @@ export const nudgeEngine = schedules.task({
         const dedupWindowMs = pf.nudge_frequency === "aggressive" ? 4 * 60 * 60 * 1000 : 20 * 60 * 60 * 1000
         const dedupSince = new Date(now.getTime() - dedupWindowMs)
 
-        const { data: recentLog } = await serviceClient
+        const { data: recentLogs } = await serviceClient
           .from("nudge_logs")
           .select("id")
           .eq("user_id", userId)
           .eq("nudge_type", "productive_window")
           .gte("sent_at", dedupSince.toISOString())
-          .maybeSingle()
+          .order("sent_at", { ascending: false })
+          .limit(1)
 
-        if (recentLog) {
-          console.log(`[nudge-engine] Section A uid=${userId} dedup hit — nudge already sent in last 20h`)
+        if (recentLogs && recentLogs.length > 0) {
+          console.log(`[nudge-engine] Section A uid=${userId} dedup hit — nudge already sent in last ${dedupWindowMs / 3_600_000}h`)
           return
         }
 
@@ -242,7 +216,26 @@ export const nudgeEngine = schedules.task({
         })
         console.log(`[nudge-engine] Section A uid=${userId} nudge text: "${nudgeText}"`)
 
+        // Claim before send: upsert refreshes sent_at (the 20h/4h dedup window
+        // reads it). A plain insert would silently fail on the unique index the
+        // second time the same assignment is "nearest" → repeat-window spam.
+        const nearest = assignments[0]
+        const claimRow = {
+          user_id: userId,
+          assignment_id: nearest?.id ?? null,
+          nudge_type: "productive_window",
+          sent_at: now.toISOString(),
+        }
+        const { error: claimError } = nearest
+          ? await serviceClient.from("nudge_logs").upsert(claimRow, { onConflict: "user_id,assignment_id,nudge_type" })
+          : await serviceClient.from("nudge_logs").insert(claimRow) // NULL assignment_id: no conflict possible
+        if (claimError) {
+          console.error(`[nudge-engine] Section A uid=${userId} claim failed — NOT sending:`, claimError.message)
+          return
+        }
+
         // Send to ALL devices for this user.
+        let delivered = false
         for (const sub of subs) {
           const subscription: webpush.PushSubscription = {
             endpoint: sub.endpoint,
@@ -250,6 +243,7 @@ export const nudgeEngine = schedules.task({
           }
           try {
             await sendPushNotification(subscription, nudgeText, "Peak Focus Window ⚡")
+            delivered = true
             console.log(`[nudge-engine] Section A uid=${userId} push sent to ${sub.endpoint.slice(0, 50)}… ✓`)
           } catch (err: unknown) {
             const statusCode = (err as { statusCode?: number })?.statusCode
@@ -262,15 +256,17 @@ export const nudgeEngine = schedules.task({
             }
           }
         }
-        productiveWindowSent++
 
-        const nearest = assignments[0]
-        await serviceClient.from("nudge_logs").insert({
-          user_id: userId,
-          assignment_id: nearest?.id ?? null,
-          nudge_type: "productive_window",
-          sent_at: now.toISOString(),
-        })
+        if (delivered) {
+          productiveWindowSent++
+        } else {
+          // Nothing went out — release the claim so the next run retries.
+          await serviceClient.from("nudge_logs").delete()
+            .eq("user_id", userId)
+            .eq("nudge_type", "productive_window")
+            .eq("sent_at", now.toISOString())
+          console.log(`[nudge-engine] Section A uid=${userId} released claim (0 devices delivered)`)
+        }
       }),
     )
 
@@ -283,22 +279,23 @@ export const nudgeEngine = schedules.task({
     console.log(`[nudge-engine] Section A done: productive_window_sent=${productiveWindowSent}`)
 
     // ── Section B: Deadline Nudges ────────────────────────────────────────────
-    // Fire for ALL users with push subscriptions, regardless of productive hours.
-    // Thresholds: 12h (±1h window), 6h (±1h window), 1h (±30m window).
+    // Catch-up buckets over remaining time: 1h (≤90m), 6h (≤7h), 12h (≤13h).
+    // Each assignment gets exactly the bucket containing its remaining time,
+    // once. Wording is computed from the actual remaining time, not a static
+    // label, so "Due in ~5 Hours" means 5 hours — not "somewhere in 5–7h".
 
     const thirteenHoursFromNow = new Date(now.getTime() + 13 * 3_600_000)
     let deadlineSent = 0
 
-    console.log(`[nudge-engine] Section B: processing ${allSubs.length} push subscription(s)`)
+    console.log(`[nudge-engine] Section B: processing ${subsByUser.size} user(s)`)
     const sectionBResults = await Promise.allSettled(
-      allSubs.map(async (sub) => {
-        const userId = sub.user_id
-
+      [...subsByUser.entries()].map(async ([userId, subs]) => {
         const pf = profileByUser.get(userId)
+        const userTz = tzByUser.get(userId) ?? getDefaultTimezone()
 
         // Quiet hours check (skip if profile is missing)
         if (pf) {
-          const localHour = getLocalHour(now, tzByUser.get(userId) ?? getDefaultTimezone())
+          const localHour = getLocalHour(now, userTz)
 
           if (isInQuietHours(pf.quiet_hours_start, pf.quiet_hours_end, localHour)) {
             console.log(`[nudge-engine] Section B uid=${userId} in quiet hours — skipping`)
@@ -336,58 +333,95 @@ export const nudgeEngine = schedules.task({
           .in("assignment_id", assignmentIds)
           .in("nudge_type", ["12h", "6h", "1h"])
 
-        const sentSet = new Set(
-          (sentLogs ?? []).map((l) => `${l.assignment_id}:${l.nudge_type}`),
-        )
+        const sentByAssignment = new Map<string, Set<DeadlineType>>()
+        for (const l of sentLogs ?? []) {
+          if (!l.assignment_id) continue
+          const set = sentByAssignment.get(l.assignment_id) ?? new Set<DeadlineType>()
+          set.add(l.nudge_type as DeadlineType)
+          sentByAssignment.set(l.assignment_id, set)
+        }
 
-        for (const threshold of DEADLINE_THRESHOLDS) {
+        // Group assignments by their current (not-yet-sent) bucket.
+        const byBucket = new Map<DeadlineThreshold, typeof upcomingAssignments>()
+        for (const a of upcomingAssignments) {
+          if (!a.due_at) continue
+          const threshold = pickDeadlineThreshold(
+            new Date(a.due_at).getTime() - now.getTime(),
+            sentByAssignment.get(a.id) ?? new Set<DeadlineType>(),
+          )
+          if (!threshold) continue
+          const list = byBucket.get(threshold) ?? []
+          list.push(a)
+          byBucket.set(threshold, list)
+        }
+
+        for (const [threshold, list] of byBucket) {
           // In minimal mode, only send 1h deadline nudges.
           if (pf?.nudge_frequency === "minimal" && threshold.type !== "1h") continue
 
-          // Filter assignments hitting this threshold window.
-          const inWindow = upcomingAssignments.filter((a) => {
-            if (!a.due_at) return false
-            const ms = new Date(a.due_at).getTime() - now.getTime()
-            return ms >= threshold.minMs && ms <= threshold.maxMs
-          })
-
-          // Remove any already logged (dedup via partial unique index).
-          const toSend = inWindow.filter(
-            (a) => !sentSet.has(`${a.id}:${threshold.type}`),
+          const earliest = list[0] // query is ordered by due_at asc; bucket filter preserves order
+          const remainingMs = new Date(earliest.due_at!).getTime() - now.getTime()
+          const remaining = formatRemaining(remainingMs)
+          const clockLabel = list.length === 1
+            ? `(by ${formatClockTime(new Date(earliest.due_at!), userTz)})`
+            : undefined
+          const message = buildDeadlineMessage(
+            list.map((a) => ({ title: a.title, dueAt: a.due_at })),
+            remaining,
+            clockLabel,
           )
-          if (toSend.length === 0) continue
+          const notifTitle = `Due in ${remaining} ${threshold.icon}`
 
-          const message = buildDeadlineMessage(toSend, threshold.label)
-
-          const subscription: webpush.PushSubscription = {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          }
-
-          console.log(`[nudge-engine] Section B uid=${userId} sending ${threshold.type} deadline nudge for ${toSend.length} assignment(s)`)
-          try {
-            await sendPushNotification(subscription, message, threshold.notifTitle)
-            deadlineSent++
-            console.log(`[nudge-engine] Section B uid=${userId} ${threshold.type} push sent successfully ✓`)
-          } catch (err: unknown) {
-            const statusCode = (err as { statusCode?: number })?.statusCode
-            if (statusCode === 410 || statusCode === 404) {
-              console.log(`[nudge-engine] Section B uid=${userId} stale sub (${statusCode}), deleting`)
-              await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
-              return // Skip remaining thresholds for this dead subscription
-            }
-            console.error(`[nudge-engine] Section B uid=${userId} push failed:`, err)
-          }
-
-          // Insert one nudge_log row per assignment covered by this notification.
-          await serviceClient.from("nudge_logs").insert(
-            toSend.map((a) => ({
+          // Claim the bucket FIRST — never send without a durable dedup record.
+          // (An insert failure previously meant repeated sends every run.)
+          const { error: claimError } = await serviceClient.from("nudge_logs").upsert(
+            list.map((a) => ({
               user_id: userId,
               assignment_id: a.id,
               nudge_type: threshold.type,
               sent_at: now.toISOString(),
             })),
+            { onConflict: "user_id,assignment_id,nudge_type", ignoreDuplicates: true },
           )
+          if (claimError) {
+            console.error(`[nudge-engine] Section B uid=${userId} ${threshold.type} claim failed — NOT sending:`, claimError.message)
+            continue
+          }
+
+          console.log(`[nudge-engine] Section B uid=${userId} sending ${threshold.type} deadline nudge for ${list.length} assignment(s): "${message}"`)
+          let delivered = false
+          for (const sub of subs) {
+            const subscription: webpush.PushSubscription = {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            }
+            try {
+              await sendPushNotification(subscription, message, notifTitle)
+              delivered = true
+              console.log(`[nudge-engine] Section B uid=${userId} ${threshold.type} push sent successfully ✓`)
+            } catch (err: unknown) {
+              const statusCode = (err as { statusCode?: number })?.statusCode
+              if (statusCode === 410 || statusCode === 404) {
+                console.log(`[nudge-engine] Section B uid=${userId} stale sub (${statusCode}), deleting`)
+                await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
+              } else {
+                console.error(`[nudge-engine] Section B uid=${userId} push failed:`, err)
+              }
+            }
+          }
+
+          if (delivered) {
+            deadlineSent++
+          } else {
+            // Nothing went out — release the claim so the next run retries.
+            await serviceClient
+              .from("nudge_logs")
+              .delete()
+              .eq("user_id", userId)
+              .in("assignment_id", list.map((a) => a.id))
+              .eq("nudge_type", threshold.type)
+            console.log(`[nudge-engine] Section B uid=${userId} released ${threshold.type} claim (0 devices delivered)`)
+          }
         }
       }),
     )
@@ -395,7 +429,7 @@ export const nudgeEngine = schedules.task({
     for (let i = 0; i < sectionBResults.length; i++) {
       const r = sectionBResults[i]
       if (r.status === "rejected") {
-        console.error(`[nudge-engine] Section B uid=${allSubs[i].user_id} threw:`, r.reason)
+        console.error(`[nudge-engine] Section B user[${i}] threw:`, r.reason)
       }
     }
     console.log(`[nudge-engine] Section B done: deadline_sent=${deadlineSent}`)
@@ -418,20 +452,22 @@ export const nudgeEngine = schedules.task({
     }
 
     // ── Section D: Overdue reminders ──────────────────────────────────────────
-    // For each user with push subs, find incomplete past-due assignments and
-    // nudge AT MOST ONCE A DAY (every 24 hours) per assignment until completed.
-    // Fires even in minimal mode (overdue is existential). Quiet hours and pause still honored.
+    // One nudge per overdue assignment per 24h (rolling window), until completed
+    // or dismissed. Fires even in minimal mode; quiet hours and pause honored.
+    // CLAIM BEFORE SEND: the nudge_logs row is upserted first; if the claim
+    // fails we do NOT send. (Prod bug fixed 2026-08-23: sends succeeded while
+    // every log insert failed → overdue spam every run.)
     let overdueSent = 0
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
-    console.log(`[nudge-engine] Section D: processing ${allSubs.length} push subscription(s) for overdue`)
+    console.log(`[nudge-engine] Section D: processing ${subsByUser.size} user(s) for overdue`)
     const sectionDResults = await Promise.allSettled(
-      allSubs.map(async (sub) => {
-        const userId = sub.user_id
+      [...subsByUser.entries()].map(async ([userId, subs]) => {
         const pf = profileByUser.get(userId)
+        const userTz = tzByUser.get(userId) ?? getDefaultTimezone()
 
         if (pf) {
-          const localHour = getLocalHour(now, tzByUser.get(userId) ?? getDefaultTimezone())
+          const localHour = getLocalHour(now, userTz)
           if (isInQuietHours(pf.quiet_hours_start, pf.quiet_hours_end, localHour)) {
             console.log(`[nudge-engine] Section D uid=${userId} in quiet hours — skipping`)
             return
@@ -475,11 +511,6 @@ export const nudgeEngine = schedules.task({
           return
         }
 
-        const subscription: webpush.PushSubscription = {
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth },
-        }
-
         for (const a of toNudge) {
           const courseName =
             (a.courses as { name: string } | null)?.name ?? "Unknown Course"
@@ -487,29 +518,54 @@ export const nudgeEngine = schedules.task({
             a.title,
             a.due_at ?? now.toISOString(),
             courseName,
-            tzByUser.get(userId) ?? getDefaultTimezone(),
+            userTz,
           )
-          console.log(`[nudge-engine] Section D uid=${userId} overdue nudge for "${a.title}"`)
 
-          try {
-            await sendPushNotification(subscription, nudgeText, "Overdue Assignment 📌")
-            overdueSent++
-          } catch (err: unknown) {
-            const statusCode = (err as { statusCode?: number })?.statusCode
-            if (statusCode === 410 || statusCode === 404) {
-              console.log(`[nudge-engine] Section D uid=${userId} stale sub (${statusCode}), deleting`)
-              await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
-              return
-            }
-            console.error(`[nudge-engine] Section D uid=${userId} push failed:`, err)
+          // Claim today's slot first — see claim-before-send note above.
+          const { error: claimError } = await serviceClient
+            .from("nudge_logs")
+            .upsert(
+              { user_id: userId, assignment_id: a.id, nudge_type: "overdue", sent_at: now.toISOString() },
+              { onConflict: "user_id,assignment_id,nudge_type" },
+            )
+          if (claimError) {
+            console.error(`[nudge-engine] Section D uid=${userId} claim failed for "${a.title}" — NOT sending:`, claimError.message)
             continue
           }
 
-          await serviceClient.from("nudge_logs")
-            .upsert(
-              { user_id: userId, assignment_id: a.id, nudge_type: "overdue", sent_at: now.toISOString() },
-              { onConflict: "user_id,assignment_id,nudge_type" }
-            )
+          console.log(`[nudge-engine] Section D uid=${userId} overdue nudge for "${a.title}"`)
+          let delivered = false
+          for (const sub of subs) {
+            const subscription: webpush.PushSubscription = {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            }
+            try {
+              await sendPushNotification(subscription, nudgeText, "Overdue Assignment 📌")
+              delivered = true
+            } catch (err: unknown) {
+              const statusCode = (err as { statusCode?: number })?.statusCode
+              if (statusCode === 410 || statusCode === 404) {
+                console.log(`[nudge-engine] Section D uid=${userId} stale sub (${statusCode}), deleting`)
+                await serviceClient.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
+              } else {
+                console.error(`[nudge-engine] Section D uid=${userId} push failed:`, err)
+              }
+            }
+          }
+
+          if (delivered) {
+            overdueSent++
+          } else {
+            // Nothing went out — release the claim so the next run retries.
+            await serviceClient
+              .from("nudge_logs")
+              .delete()
+              .eq("user_id", userId)
+              .eq("assignment_id", a.id)
+              .eq("nudge_type", "overdue")
+            console.log(`[nudge-engine] Section D uid=${userId} released claim for "${a.title}" (0 devices delivered)`)
+          }
         }
       }),
     )
@@ -517,7 +573,7 @@ export const nudgeEngine = schedules.task({
     for (let i = 0; i < sectionDResults.length; i++) {
       const r = sectionDResults[i]
       if (r.status === "rejected") {
-        console.error(`[nudge-engine] Section D uid=${allSubs[i].user_id} threw:`, r.reason)
+        console.error(`[nudge-engine] Section D user[${i}] threw:`, r.reason)
       }
     }
     console.log(`[nudge-engine] Section D done: overdue_sent=${overdueSent}`)

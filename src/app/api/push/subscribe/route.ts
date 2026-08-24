@@ -13,6 +13,7 @@ const ratelimit = new Ratelimit({
     token: env.UPSTASH_REDIS_REST_TOKEN,
   }),
   limiter: Ratelimit.slidingWindow(10, "1 h"),
+  prefix: "rl:push:subscribe",
 });
 
 export async function POST(req: NextRequest) {

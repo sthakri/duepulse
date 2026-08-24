@@ -51,7 +51,34 @@ Before deploying to production, verify each item:
 - [ ] **Auth redirect URLs** — Add production domain to Supabase Auth → URL Configuration → Redirect URLs
 - [ ] **PWA manifest** — Update `start_url` and icons in `public/manifest.json` for production domain
 - [ ] **VAPID keys** — If using a new domain, regenerate: `npx web-push generate-vapid-keys`
-- [ ] **Migration: overdue nudge type** — Run `supabase/migrations/20260816_overdue_nudge_type.sql` on production
+- [x] **Migration: overdue nudge type** — Applied to prod 2026-08-23 (`20260816_overdue_nudge_type.sql`). **This was missing and caused overdue pushes to resend every cron run** (send succeeded, log insert rejected by old CHECK constraint, error swallowed by Promise.allSettled).
+- [x] **Migration: nudge_logs dedup index** — Applied to prod 2026-08-23 (`20260823_nudge_logs_dedup_nonpartial.sql`). Replaced partial unique index: PostgREST upserts cannot infer partial indexes as ON CONFLICT arbiters (error 42P10).
+- [ ] **Trigger.dev redeploy** — Cron changed from hourly (`0 * * * *`) to every 15 min (`*/15 * * * *`); run `npx trigger.dev@latest deploy` for prod to pick it up.
+
+### Session 19 — Notification timing & overdue dedup hardening
+
+- **Cron frequency**: `0 * * * *` → `*/15 * * * *`; deadline nudges now land within ~15 min of intent (previously up to 60 min late).
+- **Catch-up buckets** (`src/lib/deadline.ts`): 1h (≤90m) / 6h (≤7h) / 12h (≤13h); an assignment gets exactly the bucket containing its remaining time — late-synced assignments get a nudge instead of being skipped; no stale larger bucket fires after a smaller one.
+- **Accurate wording**: notification title/body computed from actual remaining time ("Due in ~5 Hours ⚡", "…due in 45 minutes (by 6:30 PM)") — no more static "~6 hours" for a 5h-away deadline.
+- **Per-user send decision**: Sections B and D now decide once per user (previously per subscription), then fan out to the user's devices — removes the multi-device dedup race, halves DB queries.
+- **Claim-before-send**: nudge_logs claim written before the push; if every device send fails, the claim is released so the next run retries. Repeats are now impossible without a durable record.
+- **Overdue wording** (`src/lib/nim.ts`): past-due assignments no longer say "due today" — "was due yesterday / N days ago / earlier today", with an overdue-specific prompt rule.
+- **Timezone fallback**: server-side `getDefaultTimezone()` is now `America/Chicago` (was the machine's zone — UTC on Trigger.dev workers).
+- **Prod DB fixes (applied)**: added `overdue` to `nudge_logs.nudge_type` CHECK; replaced partial `nudge_logs_dedup` index with non-partial.
+- **Tests**: 18 new in `deadline.test.ts` (68 total pass).
+
+### Session 19b — Security hardening (from audit)
+
+- **Timezone poisoning fix (was HIGH)**: one malformed `profiles.timezone` (writable via RLS) could crash the entire nudge engine run loop for all users. Fixed in 3 layers: `coerceTimezone()` guards every engine read; `timezoneSchema` (Intl-validated) in `saveNotificationSettings`; DB CHECK `profiles_timezone_shape` (regex) — applied to prod 2026-08-23.
+- **`/api/nudge/test` now fails CLOSED** (404 unless `NODE_ENV === "development"`; previously default-on when env unset).
+- **Server actions hardened**: quiet hours validated 0–23, `nudge_frequency` allowlisted, pause hours clamped ≤720 (Infinity crash), generic error messages (no raw PostgREST errors to client).
+- **Rate limits**: `/api/canvas/encrypt` got its missing limiter (10/h); all routes now use distinct Redis prefixes (previously shared one budget per user).
+- **Prompt hygiene**: assignment/course names sanitized (control/bidi chars stripped, 120-char cap) before NIM prompts.
+- **Headers + PWA**: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` on all routes; removed `/api/*` from service-worker runtime cache (authed responses no longer persist per-user data on shared devices).
+- **Service worker**: push handler no longer crashes on non-JSON payloads.
+- **Deps**: Next 16.2.6 → **16.3.2** (patches reachable Server-Actions DoS); `@trigger.dev/sdk/build` → 4.5.12; `ws` forced ≥ 8.21.3 via override (patches DoS/memory advisories). Remaining audit noise: `next-pwa` build-time `serialize-javascript` (replace next-pwa post-launch), OTel baggage DoS inside trigger.dev tree.
+- **`CRON_SECRET`** marked optional (unused legacy); `ENCRYPTION_KEY` schema pinned to base64-of-32-bytes (derivation MUST stay byte-stable — see crypto.ts comment).
+- **Deferred**: push subscription ownership check on endpoint reuse (shared-device edge); unsubscribe/DELETE route + "disable on this device" UI; full CSP header.
 
 ### Key Rotation
 

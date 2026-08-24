@@ -4,6 +4,10 @@ const ALGO = "AES-GCM";
 const IV_LENGTH = 12;
 
 async function getKey(): Promise<CryptoKey> {
+  // DO NOT CHANGE this derivation without a re-encryption migration:
+  // it must stay byte-identical or every stored Canvas token becomes
+  // undecryptable. The pinned base64 format (enforced in env.ts) guarantees
+  // slice(0,32) is 32 ASCII chars → 32 bytes → AES-256.
   const raw = new TextEncoder().encode(env.ENCRYPTION_KEY.slice(0, 32));
   return crypto.subtle.importKey("raw", raw, { name: ALGO }, false, [
     "encrypt",

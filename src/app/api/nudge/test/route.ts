@@ -3,51 +3,22 @@ import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
 import { generateNudge, generateProductiveWindowNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
-import { getDefaultTimezone } from "@/lib/time"
+import { getDefaultTimezone, formatClockTime } from "@/lib/time"
+import {
+  DEADLINE_THRESHOLDS,
+  pickDeadlineThreshold,
+  formatRemaining,
+  buildDeadlineMessage,
+  type DeadlineType,
+} from "@/lib/deadline"
 import { nudgeTestQuerySchema } from "@/lib/validations"
 import type { Database } from "@/database.types"
 import webpush from "web-push"
 
-type NudgeType = "productive_window" | "12h" | "6h" | "1h"
-
-const DEADLINE_THRESHOLDS: Record<
-  Exclude<NudgeType, "productive_window">,
-  { label: string; notifTitle: string; minMs: number; maxMs: number }
-> = {
-  "12h": {
-    label: "~12 hours",
-    notifTitle: "Due in ~12 Hours ⏰",
-    minMs: 11 * 3_600_000,
-    maxMs: 13 * 3_600_000,
-  },
-  "6h": {
-    label: "~6 hours",
-    notifTitle: "Due in ~6 Hours ⚡",
-    minMs: 5 * 3_600_000,
-    maxMs: 7 * 3_600_000,
-  },
-  "1h": {
-    label: "1 hour",
-    notifTitle: "Due in 1 Hour 🚨",
-    minMs: 30 * 60_000,
-    maxMs: 90 * 60_000,
-  },
-}
-
-function buildDeadlineMessage(
-  assignments: { title: string }[],
-  label: string,
-): string {
-  if (assignments.length === 1)
-    return `${assignments[0].title} is due in ${label}!`
-  if (assignments.length === 2)
-    return `${assignments[0].title} and ${assignments[1].title} are due in ${label}!`
-  const rest = assignments.length - 2
-  return `${assignments[0].title}, ${assignments[1].title}, and ${rest} more due in ${label}!`
-}
-
 export async function GET(req: NextRequest) {
-  if (env.NODE_ENV === "production") {
+  // Dev-only tool. Fail CLOSED: any non-development environment 404s, so an
+  // unset/misset NODE_ENV can never expose this unauthenticated endpoint.
+  if (env.NODE_ENV !== "development") {
     return NextResponse.json({}, { status: 404 })
   }
 
@@ -130,14 +101,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    await serviceClient.from("nudge_logs").insert({
-      user_id: userId,
-      assignment_id: assignment.id,
-      nudge_type: "overdue",
-      sent_at: now.toISOString(),
-    })
+    const { error: logError } = await serviceClient.from("nudge_logs").upsert(
+      {
+        user_id: userId,
+        assignment_id: assignment.id,
+        nudge_type: "overdue",
+        sent_at: now.toISOString(),
+      },
+      { onConflict: "user_id,assignment_id,nudge_type" },
+    )
 
-    return NextResponse.json({ sent: true, type, assignment: assignment.title, nudge: nudgeText, devices: results })
+    return NextResponse.json({ sent: true, type, assignment: assignment.title, nudge: nudgeText, devices: results, logError: logError?.message ?? null })
   }
 
   // ── Productive window nudge ──────────────────────────────────────────────────
@@ -196,12 +170,15 @@ export async function GET(req: NextRequest) {
     }
 
     const firstAssignment = assignments?.[0]
-    await serviceClient.from("nudge_logs").insert({
+    const productiveClaim = {
       user_id: userId,
       assignment_id: firstAssignment?.id ?? null,
       nudge_type: "productive_window",
       sent_at: now.toISOString(),
-    })
+    }
+    const { error: productiveLogError } = firstAssignment
+      ? await serviceClient.from("nudge_logs").upsert(productiveClaim, { onConflict: "user_id,assignment_id,nudge_type" })
+      : await serviceClient.from("nudge_logs").insert(productiveClaim)
 
     return NextResponse.json({
       sent: true,
@@ -209,11 +186,12 @@ export async function GET(req: NextRequest) {
       upcomingCount: upcomingList.length,
       nudge: nudgeText,
       devices: results,
+      logError: productiveLogError?.message ?? null,
     })
   }
 
   // ── Deadline nudge (12h / 6h / 1h) ──────────────────────────────────────────
-  const threshold = DEADLINE_THRESHOLDS[type]
+  const threshold = DEADLINE_THRESHOLDS.find((t) => t.type === type)!
 
   const { data: upcomingAssignments } = await serviceClient
     .from("assignments")
@@ -232,38 +210,59 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // Filter to assignments actually inside the minimum boundary.
-  const inWindow = upcomingAssignments.filter((a) => {
-    if (!a.due_at) return false
-    const ms = new Date(a.due_at).getTime() - now.getTime()
-    return ms >= threshold.minMs
-  })
-
-  if (inWindow.length === 0) {
-    return NextResponse.json({ sent: false, type, reason: "No assignments in window" })
-  }
-
-  // Check which have already been sent (dedup).
-  const assignmentIds = inWindow.map((a) => a.id)
+  // Dedup: load which deadline buckets already fired for these assignments.
+  const assignmentIds = upcomingAssignments.map((a) => a.id)
   const { data: sentLogs } = await serviceClient
     .from("nudge_logs")
-    .select("assignment_id")
+    .select("assignment_id, nudge_type")
     .eq("user_id", userId)
     .in("assignment_id", assignmentIds)
-    .eq("nudge_type", type)
+    .in("nudge_type", ["12h", "6h", "1h"])
 
-  const sentIds = new Set((sentLogs ?? []).map((l) => l.assignment_id))
-  const toSend = inWindow.filter((a) => !sentIds.has(a.id))
+  const sentByAssignment = new Map<string, Set<DeadlineType>>()
+  for (const l of sentLogs ?? []) {
+    if (!l.assignment_id) continue
+    const set = sentByAssignment.get(l.assignment_id) ?? new Set<DeadlineType>()
+    set.add(l.nudge_type as DeadlineType)
+    sentByAssignment.set(l.assignment_id, set)
+  }
+
+  // Only assignments whose current catch-up bucket matches the requested type.
+  const toSend = upcomingAssignments.filter((a) => {
+    if (!a.due_at) return false
+    const picked = pickDeadlineThreshold(
+      new Date(a.due_at).getTime() - now.getTime(),
+      sentByAssignment.get(a.id) ?? new Set<DeadlineType>(),
+    )
+    return picked?.type === type
+  })
 
   if (toSend.length === 0) {
     return NextResponse.json({
       sent: false,
       type,
-      reason: "Already sent for all assignments in this window",
+      reason: "No assignments currently hitting this bucket (or already sent)",
     })
   }
 
-  const message = buildDeadlineMessage(toSend, threshold.label)
+  const { data: profile } = await serviceClient
+    .from("profiles")
+    .select("timezone")
+    .eq("id", userId)
+    .maybeSingle()
+  const userTz = profile?.timezone ?? getDefaultTimezone()
+
+  const earliest = toSend[0]
+  const remaining = formatRemaining(new Date(earliest.due_at!).getTime() - now.getTime())
+  const clockLabel = toSend.length === 1
+    ? `(by ${formatClockTime(new Date(earliest.due_at!), userTz)})`
+    : undefined
+  const message = buildDeadlineMessage(
+    toSend.map((a) => ({ title: a.title, dueAt: a.due_at })),
+    remaining,
+    clockLabel,
+  )
+  const notifTitle = `Due in ${remaining} ${threshold.icon}`
 
   // Send to ALL devices for this user.
   const results: string[] = []
@@ -273,7 +272,7 @@ export async function GET(req: NextRequest) {
       keys: { p256dh: sub.p256dh, auth: sub.auth },
     }
     try {
-      await sendPushNotification(subscription, message, threshold.notifTitle)
+      await sendPushNotification(subscription, message, notifTitle)
       results.push(`✓ ${sub.endpoint.slice(0, 50)}…`)
     } catch (err: unknown) {
       const statusCode = (err as { statusCode?: number })?.statusCode
@@ -286,21 +285,24 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  await serviceClient.from("nudge_logs").insert(
+  const { error: deadlineLogError } = await serviceClient.from("nudge_logs").upsert(
     toSend.map((a) => ({
       user_id: userId,
       assignment_id: a.id,
       nudge_type: type,
       sent_at: now.toISOString(),
     })),
+    { onConflict: "user_id,assignment_id,nudge_type", ignoreDuplicates: true },
   )
 
   return NextResponse.json({
     sent: true,
     type,
     assignments: toSend.map((a) => a.title),
+    title: notifTitle,
     message,
     devices: results,
+    logError: deadlineLogError?.message ?? null,
   })
 }
 

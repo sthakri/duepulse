@@ -21,7 +21,9 @@ create table if not exists public.profiles (
   id            uuid primary key references auth.users(id) on delete cascade,
   canvas_domain text,
   canvas_token  text,
-  timezone      text default 'America/Chicago',
+  timezone      text default 'America/Chicago'
+    constraint profiles_timezone_shape
+    check (timezone is null or timezone ~ '^[A-Za-z][A-Za-z0-9_+\-/]{1,63}$'),
   onboarding_complete boolean not null default false,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
@@ -242,10 +244,13 @@ create table if not exists public.nudge_logs (
   sent_at        timestamptz not null default now()
 );
 
--- Partial unique index: each assignment can only receive each deadline nudge type once.
+-- Unique index: each assignment can only receive each nudge type once.
+-- Non-partial (unlike a `where assignment_id is not null` variant): partial
+-- unique indexes cannot be inferred by PostgREST upsert ON CONFLICT targets
+-- (error 42P10). NULL assignment_id rows (productive_window) stay unrestricted
+-- since Postgres treats NULLs as distinct. Applied to prod 2026-08-23.
 create unique index if not exists nudge_logs_dedup
-  on public.nudge_logs (user_id, assignment_id, nudge_type)
-  where assignment_id is not null;
+  on public.nudge_logs (user_id, assignment_id, nudge_type);
 
 create index if not exists nudge_logs_user_type_time
   on public.nudge_logs (user_id, nudge_type, sent_at desc);

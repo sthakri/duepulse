@@ -137,7 +137,7 @@ export default function SettingsForm({
 
   function isInQuietZone(hour: number): boolean {
     if (!quietEnabled) return false;
-    if (quietStart === quietEnd) return hour === quietStart;
+    if (quietStart === quietEnd) return false; // equal start/end = off (matches nudge engine)
     if (quietStart < quietEnd) return hour >= quietStart && hour < quietEnd;
     return hour >= quietStart || hour < quietEnd;
   }
