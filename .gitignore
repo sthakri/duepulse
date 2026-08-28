@@ -69,6 +69,7 @@ DEPLOYMENT.md
 /.github/prompts/
 /.agents/
 /skills-lock.json
+/.claudeignore
 
 # Supabase CLI temp files
 /supabase/.temp/
@@ -77,3 +78,6 @@ DEPLOYMENT.md
 public/sw.js
 public/worker-*.js
 public/workbox-*.js
+
+# Favicon - use public/favicon.ico instead
+src/app/favicon.ico
