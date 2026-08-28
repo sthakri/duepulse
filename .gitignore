@@ -71,6 +71,9 @@ DEPLOYMENT.md
 /skills-lock.json
 /.claudeignore
 
+# shadcn/ui config for public repos
+components.json
+
 # Supabase CLI temp files
 /supabase/.temp/
 
