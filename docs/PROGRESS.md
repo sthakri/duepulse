@@ -65,6 +65,7 @@ Before deploying to production, verify each item:
 - **New scheduled task** (`src/trigger/canvas-sync.ts`): `canvas-sync`, cron `5,35 * * * *` (offset from the nudge engine's `*/15`). Syncs every profile with stored Canvas credentials via service role, in chunks of 5. Dropped the route's no-op `profiles.updated_at` touch.
 - **Token-expired push**: on Canvas 401 or decrypt failure the task sends one "Canvas Disconnected ⚠️" push per user per 72h (claim-before-send via `nudge_logs`, same pattern as the nudge engine; stale-sub cleanup on 410/404). Without it, a dead token silently killed ALL nudges until the user happened to open the app. Requires `20260827_token_expired_nudge_type.sql` on prod; claim failure degrades to "no push" (never spam).
 - **Client behavior unchanged**: open-tab auto-sync still gives active users fresher data; server sync is additive and idempotent (same upsert conflict keys).
+- **Fix after first deploy**: the task crashed on the Trigger.dev runtime (Node 21, no native WebSocket) because `createServerClient` eagerly initializes its realtime client — added `realtime: { transport: ws }` (same as nudge-engine). Required even though the task never subscribes to channels.
 
 ### Session 19 — Notification timing & overdue dedup hardening
 

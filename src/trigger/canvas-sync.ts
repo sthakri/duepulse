@@ -6,6 +6,7 @@ import { syncUserCanvas } from "@/lib/canvas-sync"
 import { sendPushNotification } from "@/lib/webpush"
 import type { Database } from "@/database.types"
 import type webpush from "web-push"
+import ws from "ws"
 
 // Server-side Canvas sync: keeps assignments fresh (and nudges firing) for
 // users who never open the app. AutoSync.tsx only runs in an open browser
@@ -15,10 +16,17 @@ export const canvasSync = schedules.task({
   id: "canvas-sync",
   cron: "5,35 * * * *", // every 30 min (UTC), offset from the nudge engine's */15 runs
   run: async () => {
+    // The ws transport is required even though this task never subscribes to
+    // channels: on the Trigger.dev runtime (Node 21, no native WebSocket) the
+    // SupabaseClient constructor initializes its realtime client eagerly and
+    // throws without it. Same pattern as nudge-engine.ts.
     const serviceClient = createServerClient<Database>(
       env.NEXT_PUBLIC_SUPABASE_URL,
       env.SUPABASE_SERVICE_ROLE_KEY,
-      { cookies: { getAll: () => [], setAll: () => {} } },
+      {
+        cookies: { getAll: () => [], setAll: () => {} },
+        realtime: { transport: ws as unknown as typeof WebSocket },
+      },
     )
 
     const { data: profiles, error } = await serviceClient
