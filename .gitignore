@@ -84,3 +84,10 @@ public/workbox-*.js
 
 # Favicon - use public/favicon.ico instead
 src/app/favicon.ico
+
+# Local dev utilities & personal notes (not for public repo)
+/memory.md
+/.zcode/
+/supabase/test-nudge-ai.mjs
+/supabase/wipe-test-data.mjs
+/supabase/migrate-encrypt-tokens.ts
