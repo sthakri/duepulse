@@ -240,7 +240,7 @@ create table if not exists public.nudge_logs (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   assignment_id  uuid references public.assignments(id) on delete cascade,
-  nudge_type     text not null check (nudge_type in ('productive_window', '12h', '6h', '1h', 'overdue')),
+  nudge_type     text not null check (nudge_type in ('productive_window', '12h', '6h', '1h', 'overdue', 'token_expired')),
   sent_at        timestamptz not null default now()
 );
 

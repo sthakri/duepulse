@@ -54,6 +54,17 @@ Before deploying to production, verify each item:
 - [x] **Migration: overdue nudge type** — Applied to prod 2026-08-23 (`20260816_overdue_nudge_type.sql`). **This was missing and caused overdue pushes to resend every cron run** (send succeeded, log insert rejected by old CHECK constraint, error swallowed by Promise.allSettled).
 - [x] **Migration: nudge_logs dedup index** — Applied to prod 2026-08-23 (`20260823_nudge_logs_dedup_nonpartial.sql`). Replaced partial unique index: PostgREST upserts cannot infer partial indexes as ON CONFLICT arbiters (error 42P10).
 - [ ] **Trigger.dev redeploy** — Cron changed from hourly (`0 * * * *`) to every 15 min (`*/15 * * * *`); run `npx trigger.dev@latest deploy` for prod to pick it up.
+- [ ] **Migration: token_expired nudge type** — Run `supabase/migrations/20260827_token_expired_nudge_type.sql` on prod. Until applied, the canvas-sync task silently skips token-expired pushes (claim insert fails → no send; no spam either way).
+- [ ] **Trigger.dev deploy (canvas-sync)** — New scheduled task `canvas-sync` (cron `5,35 * * * *`) must be deployed (`npx trigger.dev@latest deploy`) or server-side sync won't run in prod.
+
+### Session 20 — Server-side Canvas sync (nudges without opening the app)
+
+- **Problem**: assignments entered the DB only via `/api/canvas/sync`, which requires a logged-in browser session (`AutoSync.tsx` runs only in an open tab). If a user didn't open the app for days, due-date changes/new assignments never reached the DB, so the nudge engine had nothing to nudge about — deadline notifications silently never fired.
+- **Shared sync core** (`src/lib/canvas-sync.ts`): `syncUserCanvas(serviceClient, userId)` — profile read + token decrypt + Canvas fetch + course/assignment upserts, moved verbatim out of the sync route. Returns a typed result (`ok` / `token_expired` / `decrypt_failed` / `not_connected` / `canvas_error` / `db_error`).
+- **Sync route slimmed** (`/api/canvas/sync`): auth + rate limit + delegate + map result to the exact same HTTP shapes (AutoSync/SyncNowButton/OnboardingWizard unaffected).
+- **New scheduled task** (`src/trigger/canvas-sync.ts`): `canvas-sync`, cron `5,35 * * * *` (offset from the nudge engine's `*/15`). Syncs every profile with stored Canvas credentials via service role, in chunks of 5. Dropped the route's no-op `profiles.updated_at` touch.
+- **Token-expired push**: on Canvas 401 or decrypt failure the task sends one "Canvas Disconnected ⚠️" push per user per 72h (claim-before-send via `nudge_logs`, same pattern as the nudge engine; stale-sub cleanup on 410/404). Without it, a dead token silently killed ALL nudges until the user happened to open the app. Requires `20260827_token_expired_nudge_type.sql` on prod; claim failure degrades to "no push" (never spam).
+- **Client behavior unchanged**: open-tab auto-sync still gives active users fresher data; server sync is additive and idempotent (same upsert conflict keys).
 
 ### Session 19 — Notification timing & overdue dedup hardening
 
