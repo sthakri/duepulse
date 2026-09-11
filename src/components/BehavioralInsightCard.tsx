@@ -2,7 +2,7 @@
 
 import type { MLInsights } from "@/lib/ml";
 
-interface Props { insights: MLInsights; totalDaysTracked: number }
+interface Props { insights: MLInsights; activeSlots: number }
 
 const CONFIDENCE_COLORS: Record<string, { dot: string; badge: string; bar: string }> = {
   high: { dot: "bg-[#10B981]", badge: "text-[#10B981]", bar: "bg-[#10B981]" },
@@ -10,20 +10,20 @@ const CONFIDENCE_COLORS: Record<string, { dot: string; badge: string; bar: strin
   low: { dot: "bg-[#64748B]", badge: "text-[#64748B]", bar: "bg-[#64748B]" },
 };
 
-export default function BehavioralInsightCard({ insights, totalDaysTracked }: Props) {
+export default function BehavioralInsightCard({ insights, activeSlots }: Props) {
   const { patterns, persona, topFocusBlock, bestDayLabels } = insights;
 
-  if (totalDaysTracked < 3) {
-    const pct = Math.min((totalDaysTracked / 3) * 100, 100);
+  if (activeSlots < 3) {
+    const pct = Math.min((activeSlots / 3) * 100, 100);
     return (
       <div className="rounded-[18px] bg-[#1E293B] border border-[#334155]/70 p-5">
         <h2 className="text-[#F8FAFC] font-semibold text-sm flex items-center gap-2">🧠 Your Focus Windows</h2>
-        <p className="text-[#94A3B8] text-sm mt-2">DuePulse is learning your patterns. Visit a few more times to unlock your focus profile.</p>
+        <p className="text-[#94A3B8] text-sm mt-2">DuePulse is learning your patterns. Use the app at a few different times of day to unlock your focus profile.</p>
         <div className="mt-4">
           <div className="w-full h-1.5 bg-[#243044] rounded-full overflow-hidden">
             <div className="h-full bg-[#6366F1] rounded-full transition-all" style={{ width: `${Math.max(pct, 4)}%` }} />
           </div>
-          <p className="text-[#64748B] text-xs mt-1.5">{totalDaysTracked} of 3 days tracked</p>
+          <p className="text-[#64748B] text-xs mt-1.5">{activeSlots} of 3 active time slots tracked</p>
         </div>
       </div>
     );

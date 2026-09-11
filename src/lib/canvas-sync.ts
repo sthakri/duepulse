@@ -118,23 +118,32 @@ export async function syncUserCanvas(
       (dbCourses ?? []).map((c) => [c.canvas_course_id, c.id])
     );
 
-    // Fetch existing dismissed rows for the incoming assignment IDs so we can
+    // Fetch existing rows for the incoming assignment IDs so we can
     // (a) skip re-upserting dismissed-but-still-incomplete rows (keeps
     //     dismissed_at intact and avoids resetting updated_at every sync),
     // (b) hard-delete dismissed rows that Canvas now reports submitted —
     //     the user dismissed them and Canvas is source of truth, so no need
-    //     to keep the row around.
+    //     to keep the row around,
+    // (c) preserve locally-marked completions that Canvas can't see
+    //     (offline/paper submissions) — sync must never flip a local
+    //     checkmark back to incomplete.
     const incomingCanvasIds = assignments.map((a) => a.canvas_assignment_id);
-    const { data: existingDismissed } = await serviceClient
+    const { data: existingRows } = await serviceClient
       .from("assignments")
-      .select("id, canvas_assignment_id, is_completed")
+      .select("id, canvas_assignment_id, is_completed, dismissed_at")
       .eq("user_id", userId)
       .in("canvas_assignment_id", incomingCanvasIds)
-      .not("dismissed_at", "is", null)
       .throwOnError();
 
     const dismissedIdMap = new Map(
-      (existingDismissed ?? []).map((r) => [r.canvas_assignment_id, r.id])
+      (existingRows ?? [])
+        .filter((r) => r.dismissed_at !== null)
+        .map((r) => [r.canvas_assignment_id, r.id])
+    );
+    const locallyCompletedIds = new Set(
+      (existingRows ?? [])
+        .filter((r) => r.is_completed)
+        .map((r) => r.canvas_assignment_id)
     );
 
     // Dismissed + Canvas now reports submitted → delete. The user dismissed
@@ -159,6 +168,8 @@ export async function syncUserCanvas(
       .filter((a) => !dismissedIdMap.has(a.canvas_assignment_id))
       .map(({ canvas_course_id, ...a }) => ({
         ...a,
+        // Sticky completion: once done (locally or per Canvas), stays done.
+        is_completed: a.is_completed || locallyCompletedIds.has(a.canvas_assignment_id),
         user_id: userId,
         course_id: courseMap.get(canvas_course_id) ?? "",
       }))

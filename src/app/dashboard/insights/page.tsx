@@ -17,6 +17,7 @@ const NUDGE_TYPE_LABELS: Record<string, string> = {
   "6h": "6h Before Due",
   "1h": "1h Before Due",
   overdue: "Overdue Reminder",
+  token_expired: "Canvas Disconnect Alert",
 };
 
 export default async function InsightsPage() {
@@ -44,7 +45,13 @@ export default async function InsightsPage() {
 
   const userTz = profile?.timezone ?? getDefaultTimezone();
   const rows = pwRows ?? [];
-  const assignments = allAssignments ?? [];
+  // Canvas only syncs the -30d/+60d window, so anything due earlier than
+  // 30 days ago is stale (never refreshed or deleted). Excluding it keeps
+  // completion/overdue numbers truthful instead of drifting forever.
+  const windowStart = new Date(now.getTime() - THIRTY_DAYS_MS);
+  const assignments = (allAssignments ?? []).filter(
+    (a) => !a.due_at || new Date(a.due_at) >= windowStart
+  );
   const courseList = courses ?? [];
   const courseMap = new Map(courseList.map((c) => [c.id, c]));
 
@@ -91,7 +98,10 @@ export default async function InsightsPage() {
 
   // ── Behavioral Focus Insights ────────────────────────────────────────────────
   const insights = analyzeProductiveWindows(rows, userTz);
-  const totalDaysTracked = new Set(rows.map((r) => r.day_of_week)).size;
+  // Count active (day, hour) slots — honest "enough data" signal. Counting
+  // distinct weekdays instead would lock out users who study on a fixed
+  // weekly schedule no matter how many days they've used the app.
+  const activeSlots = rows.filter((r) => r.score > 0).length;
 
   const nudgeCounts = (nudgeLogs ?? []).reduce<Record<string, number>>((acc, l) => {
     acc[l.nudge_type] = (acc[l.nudge_type] ?? 0) + 1;
@@ -106,7 +116,12 @@ export default async function InsightsPage() {
     scoreGrid[r.day_of_week][r.hour_of_day] = r.score;
   }
   const maxScore = Math.max(...rows.map((r) => r.score), 0.01);
-  const peakRow = rows.length ? rows.reduce((best, r) => (r.score > best.score ? r : best), rows[0]) : null;
+  // Peak = best hour summed across all days — same definition the D3 chart
+  // uses, so the two "peak" displays on this page can't disagree.
+  const hourlyTotals = new Array<number>(24).fill(0);
+  for (const r of rows) hourlyTotals[r.hour_of_day] += r.score;
+  const maxHourly = Math.max(...hourlyTotals);
+  const peakHour = maxHourly > 0 ? hourlyTotals.indexOf(maxHourly) : null;
 
   return (
     <>
@@ -147,7 +162,7 @@ export default async function InsightsPage() {
               <Clock size={16} className="text-[#818CF8]" />
             </div>
             <p className="font-bold text-2xl text-[#818CF8] mt-2 leading-none">
-              {peakRow ? formatLocalHour(peakRow.hour_of_day, userTz) : "—"}
+              {peakHour !== null ? formatLocalHour(peakHour, userTz) : "—"}
             </p>
             <p className="text-[#64748B] text-xs mt-2">Highest app activity</p>
           </div>
@@ -167,7 +182,7 @@ export default async function InsightsPage() {
         {/* Focus profile + D3 Productive Windows Chart */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2">
-            <BehavioralInsightCard insights={insights} totalDaysTracked={totalDaysTracked} />
+            <BehavioralInsightCard insights={insights} activeSlots={activeSlots} />
           </div>
           <ProductiveWindowsChart data={rows} userTz={userTz} />
         </div>
@@ -262,7 +277,7 @@ export default async function InsightsPage() {
         {/* Activity Heatmap 7x24 */}
         <div className="rounded-[18px] bg-[#1E293B] border border-[#334155]/70 p-5 sm:p-6 overflow-x-auto">
           <h2 className="text-[#F8FAFC] font-semibold text-base mb-1">Activity Heatmap (7 × 24)</h2>
-          <p className="text-[#64748B] text-xs mb-5">When you open DuePulse in your local timezone ({userTz}) — darker = higher engagement</p>
+          <p className="text-[#64748B] text-xs mb-5">When you open DuePulse in your local timezone ({userTz}) — brighter = higher engagement</p>
           <div className="min-w-[560px]">
             {/* Hour labels */}
             <div className="flex items-center mb-1 ml-9">
