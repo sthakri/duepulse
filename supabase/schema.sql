@@ -31,7 +31,11 @@ create table if not exists public.profiles (
   quiet_hours_end     smallint check (quiet_hours_end between 0 and 23),
   nudge_frequency     text not null default 'normal' check (nudge_frequency in ('aggressive','normal','minimal')),
   stress_threshold    smallint not null default 5 check (stress_threshold between 1 and 20),
-  nudge_paused_until  timestamptz
+  nudge_paused_until  timestamptz,
+  -- Last successful Canvas sync (manual, auto, or scheduled). Set by
+  -- syncUserCanvas; shown in the UI as "Last sync". updated_at is NOT this —
+  -- it tracks settings edits.
+  last_synced_at      timestamptz
 );
 
 alter table public.profiles enable row level security;

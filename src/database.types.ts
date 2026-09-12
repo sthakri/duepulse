@@ -166,6 +166,7 @@ export type Database = {
           canvas_token: string | null
           created_at: string
           id: string
+          last_synced_at: string | null
           nudge_frequency: string
           nudge_paused_until: string | null
           onboarding_complete: boolean
@@ -180,6 +181,7 @@ export type Database = {
           canvas_token?: string | null
           created_at?: string
           id: string
+          last_synced_at?: string | null
           nudge_frequency?: string
           nudge_paused_until?: string | null
           onboarding_complete?: boolean
@@ -194,6 +196,7 @@ export type Database = {
           canvas_token?: string | null
           created_at?: string
           id?: string
+          last_synced_at?: string | null
           nudge_frequency?: string
           nudge_paused_until?: string | null
           onboarding_complete?: boolean

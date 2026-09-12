@@ -17,23 +17,27 @@ export default async function AssignmentsPage() {
   const userId = user.id;
   const now = new Date();
   const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-  const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  // Every incomplete assignment (any due date — old overdue ones must stay
+  // visible so the overdue filter can't silently undercount) plus completed
+  // rows touched in the last 14 days. update_at moves on manual toggles
+  // (complete route) and on Canvas-detected completions (canvas-sync), so
+  // "recently completed" is honest both ways.
   const [{ data: assignments }, { data: profile }] = await Promise.all([
     supabase
       .from("assignments")
       .select("id, title, due_at, points_possible, canvas_assignment_id, course_id, is_completed, courses(name, color)")
       .eq("user_id", userId)
       .is("dismissed_at", null)
-      .or(`due_at.is.null,and(due_at.gte.${fourteenDaysAgo.toISOString()},due_at.lte.${fourteenDaysFromNow.toISOString()}),and(is_completed.eq.true,updated_at.gte.${fourteenDaysAgo.toISOString()})`)
+      .or(`is_completed.eq.false,and(is_completed.eq.true,updated_at.gte.${fourteenDaysAgo.toISOString()})`)
       .order("due_at", { ascending: true, nullsFirst: false }),
-    supabase.from("profiles").select("canvas_token, canvas_domain, timezone, updated_at").eq("id", userId).single(),
+    supabase.from("profiles").select("canvas_token, canvas_domain, timezone, last_synced_at").eq("id", userId).single(),
   ]);
 
   const userTz = profile?.timezone ?? getDefaultTimezone();
   const hasCanvas = !!(profile?.canvas_token && profile?.canvas_domain);
 
-  const lastSynced = profile?.updated_at ? (() => {
-    const diff = Math.floor((now.getTime() - new Date(profile.updated_at).getTime()) / 60000);
+  const lastSynced = profile?.last_synced_at ? (() => {
+    const diff = Math.floor((now.getTime() - new Date(profile.last_synced_at!).getTime()) / 60000);
     if (diff < 1) return "just now";
     if (diff < 60) return `${diff}m ago`;
     const h = Math.floor(diff / 60);

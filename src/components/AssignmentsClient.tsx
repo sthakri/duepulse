@@ -17,7 +17,7 @@ type Assignment = {
   courses: Course | null;
   is_completed?: boolean;
 };
-type Filter = "all" | "overdue" | "due-soon" | "upcoming" | "no-date" | "completed";
+type Filter = "all" | "overdue" | "due-soon" | "this-week" | "upcoming" | "no-date" | "completed";
 
 interface Props { assignments: Assignment[]; hasCanvas: boolean; userTz: string }
 
@@ -32,10 +32,20 @@ function classifyAssignment(a: Assignment): Filter {
   return "upcoming";
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The dashboard "Due this week" stat is [now, now+7d] — keep identical here. */
+function isDueThisWeek(a: Assignment): boolean {
+  if (a.is_completed || !a.due_at) return false;
+  const ms = new Date(a.due_at).getTime() - Date.now();
+  return ms >= 0 && ms <= WEEK_MS;
+}
+
 const FILTER_LABELS: Record<Filter, string> = {
   all: "All",
   overdue: "Overdue",
   "due-soon": "Due Soon",
+  "this-week": "This Week",
   upcoming: "Upcoming",
   "no-date": "No Date",
   completed: "Completed",
@@ -44,6 +54,7 @@ const FILTER_COLORS: Record<Filter, string> = {
   all: "",
   overdue: "text-[#EF4444]",
   "due-soon": "text-[#F59E0B]",
+  "this-week": "text-[#F59E0B]",
   upcoming: "text-[#10B981]",
   "no-date": "text-[#64748B]",
   completed: "text-[#10B981]",
@@ -52,7 +63,7 @@ const FILTER_COLORS: Record<Filter, string> = {
 export default function AssignmentsClient({ assignments, hasCanvas, userTz }: Props) {
   const searchParams = useSearchParams();
   const urlFilter = searchParams.get("filter") as Filter | null;
-  const isValidFilter = urlFilter && ["all", "overdue", "due-soon", "upcoming", "no-date", "completed"].includes(urlFilter);
+  const isValidFilter = urlFilter && ["all", "overdue", "due-soon", "this-week", "upcoming", "no-date", "completed"].includes(urlFilter);
   const [activeFilter, setActiveFilter] = useState<Filter>(isValidFilter ? urlFilter : "all");
   const [activeCourse, setActiveCourse] = useState<string | null>(null);
 
@@ -65,12 +76,14 @@ export default function AssignmentsClient({ assignments, hasCanvas, userTz }: Pr
     all: activeAssignments.length,
     overdue: 0,
     "due-soon": 0,
+    "this-week": 0,
     upcoming: 0,
     "no-date": 0,
     completed: 0,
   };
   for (const a of assignments) {
     counts[classifyAssignment(a)]++;
+    if (isDueThisWeek(a)) counts["this-week"]++;
   }
 
   const filtered = assignments.filter((a) => {
@@ -79,6 +92,8 @@ export default function AssignmentsClient({ assignments, hasCanvas, userTz }: Pr
       matchesFilter = !a.is_completed;
     } else if (activeFilter === "completed") {
       matchesFilter = !!a.is_completed;
+    } else if (activeFilter === "this-week") {
+      matchesFilter = isDueThisWeek(a);
     } else {
       matchesFilter = !a.is_completed && classifyAssignment(a) === activeFilter;
     }

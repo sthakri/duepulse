@@ -16,17 +16,18 @@ export default async function DashboardPage() {
 
   const userId = user.id;
   const now = new Date();
-  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-  const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  // No due-date bounds: Canvas syncs a -30d/+60d window into the DB, and
+  // every stat on this page (overdue with no floor, 6-week heatmap) needs
+  // the full set. Clipping here is what silently hid old overdue items and
+  // zeroed out weeks 3–6 of the heatmap.
   const [{ data: assignments }, { data: profile }] = await Promise.all([
     supabase
       .from("assignments")
       .select("due_at")
       .eq("user_id", userId)
       .eq("is_completed", false)
-      .is("dismissed_at", null)
-      .or(`due_at.is.null,and(due_at.gte.${fourteenDaysAgo.toISOString()},due_at.lte.${fourteenDaysFromNow.toISOString()})`),
-    supabase.from("profiles").select("canvas_token, canvas_domain, timezone, updated_at").eq("id", userId).single(),
+      .is("dismissed_at", null),
+    supabase.from("profiles").select("canvas_token, canvas_domain, timezone, last_synced_at").eq("id", userId).single(),
   ]);
 
   const userTz = profile?.timezone ?? getDefaultTimezone();
@@ -47,8 +48,8 @@ export default async function DashboardPage() {
   const dueThisWeekCount = (assignments ?? []).filter((a) => a.due_at && new Date(a.due_at) >= now && new Date(a.due_at) <= weekFromNow).length;
   const hasCanvas = !!(profile?.canvas_token && profile?.canvas_domain);
 
-  const lastSynced = profile?.updated_at ? (() => {
-    const diff = Math.floor((now.getTime() - new Date(profile.updated_at).getTime()) / 60000);
+  const lastSynced = profile?.last_synced_at ? (() => {
+    const diff = Math.floor((now.getTime() - new Date(profile.last_synced_at!).getTime()) / 60000);
     if (diff < 1) return "just now";
     if (diff < 60) return `${diff}m ago`;
     const h = Math.floor(diff / 60);
@@ -95,7 +96,7 @@ export default async function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-[#F8FAFC] font-bold text-3xl leading-none group-hover:text-[#818CF8] transition-colors">{totalCount}</p>
-                    <p className="text-[#64748B] text-sm mt-1">Total assignments</p>
+                    <p className="text-[#64748B] text-sm mt-1">Open assignments</p>
                   </div>
                 </Link>
                 <div className="h-px bg-[#334155]/70" />
@@ -109,7 +110,7 @@ export default async function DashboardPage() {
                   </div>
                 </Link>
                 <div className="h-px bg-[#334155]/70" />
-                <Link href="/dashboard/assignments?filter=upcoming" className="flex items-start gap-4 group">
+                <Link href="/dashboard/assignments?filter=this-week" className="flex items-start gap-4 group">
                   <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0">
                     <CalendarClock size={17} className="text-[#F59E0B]" />
                   </div>

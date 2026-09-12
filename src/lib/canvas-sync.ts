@@ -6,7 +6,7 @@ import {
   CanvasAuthError,
 } from "@/lib/canvas";
 import { decryptOrRaw } from "@/lib/crypto";
-import { Database } from "@/database.types";
+import { Database, TablesInsert } from "@/database.types";
 
 export type CanvasSyncResult =
   | { ok: true; synced: number }
@@ -20,6 +20,73 @@ export type CanvasSyncResult =
         | "db_error";
       message: string;
     };
+
+type ExistingRow = {
+  id: string;
+  canvas_assignment_id: number;
+  is_completed: boolean;
+  dismissed_at: string | null;
+};
+
+/**
+ * Pure planning step for a sync run (exported for tests):
+ * - `rows`: upsert payload. Dismissed rows are excluded (kept hidden or
+ *   deleted below). Sticky completion: once done (locally or per Canvas),
+ *   stays done. When Canvas is what flips an existing row to completed,
+ *   updated_at is stamped — the "recently completed" page filter keys off
+ *   updated_at, and sync upserts otherwise never touch it.
+ * - `toDeleteIds`: dismissed rows Canvas now reports submitted — the user
+ *   dismissed them and Canvas is source of truth, so drop them entirely.
+ */
+export function buildSyncPlan(
+  assignments: Awaited<ReturnType<typeof getCanvasAssignments>>,
+  existingRows: ExistingRow[],
+  courseMap: Map<number, string>,
+  userId: string,
+  nowIso: string,
+): { rows: TablesInsert<"assignments">[]; toDeleteIds: string[] } {
+  const dismissedIdMap = new Map(
+    existingRows
+      .filter((r) => r.dismissed_at !== null)
+      .map((r) => [r.canvas_assignment_id, r.id])
+  );
+  const locallyCompletedIds = new Set(
+    existingRows
+      .filter((r) => r.is_completed)
+      .map((r) => r.canvas_assignment_id)
+  );
+
+  const toDeleteIds: string[] = [];
+  for (const a of assignments) {
+    if (a.is_completed && dismissedIdMap.has(a.canvas_assignment_id)) {
+      toDeleteIds.push(dismissedIdMap.get(a.canvas_assignment_id)!);
+    }
+  }
+
+  const existingByCanvasId = new Map(
+    existingRows.map((r) => [r.canvas_assignment_id, r])
+  );
+
+  const rows = assignments
+    .filter((a) => !dismissedIdMap.has(a.canvas_assignment_id))
+    .map(({ canvas_course_id, ...a }) => {
+      const existing = existingByCanvasId.get(a.canvas_assignment_id);
+      // Canvas → completed transition: existing row was open, Canvas now
+      // reports submitted. Locally-completed rows skip this — the complete
+      // route already stamped updated_at for them.
+      const canvasCompleted = a.is_completed && !!existing && !existing.is_completed;
+      return {
+        ...a,
+        is_completed: a.is_completed || locallyCompletedIds.has(a.canvas_assignment_id),
+        user_id: userId,
+        course_id: courseMap.get(canvas_course_id) ?? "",
+        ...(canvasCompleted ? { updated_at: nowIso } : {}),
+      };
+    })
+    .filter((r) => r.course_id !== "");
+
+  return { rows, toDeleteIds };
+}
 
 /**
  * Sync one user's Canvas assignments into the DB.
@@ -84,6 +151,16 @@ export async function syncUserCanvas(
   }
 
   try {
+    // Canvas answered, so the account is reachable — stamp before anything
+    // else, including the zero-assignment early return below. The UI shows
+    // this as "Last sync"; profiles.updated_at can't serve here because it
+    // only moves on settings edits.
+    await serviceClient
+      .from("profiles")
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq("id", userId)
+      .throwOnError();
+
     if (assignments.length === 0) {
       return { ok: true, synced: 0 };
     }
@@ -118,15 +195,10 @@ export async function syncUserCanvas(
       (dbCourses ?? []).map((c) => [c.canvas_course_id, c.id])
     );
 
-    // Fetch existing rows for the incoming assignment IDs so we can
-    // (a) skip re-upserting dismissed-but-still-incomplete rows (keeps
-    //     dismissed_at intact and avoids resetting updated_at every sync),
-    // (b) hard-delete dismissed rows that Canvas now reports submitted —
-    //     the user dismissed them and Canvas is source of truth, so no need
-    //     to keep the row around,
-    // (c) preserve locally-marked completions that Canvas can't see
-    //     (offline/paper submissions) — sync must never flip a local
-    //     checkmark back to incomplete.
+    // Fetch existing rows so the planner can (a) keep dismissed rows hidden,
+    // (b) delete dismissed rows Canvas now reports submitted, (c) preserve
+    // locally-marked completions Canvas can't see (offline/paper submissions),
+    // (d) stamp updated_at when Canvas is what flips a row to completed.
     const incomingCanvasIds = assignments.map((a) => a.canvas_assignment_id);
     const { data: existingRows } = await serviceClient
       .from("assignments")
@@ -135,25 +207,13 @@ export async function syncUserCanvas(
       .in("canvas_assignment_id", incomingCanvasIds)
       .throwOnError();
 
-    const dismissedIdMap = new Map(
-      (existingRows ?? [])
-        .filter((r) => r.dismissed_at !== null)
-        .map((r) => [r.canvas_assignment_id, r.id])
+    const { rows, toDeleteIds } = buildSyncPlan(
+      assignments,
+      existingRows ?? [],
+      courseMap,
+      userId,
+      new Date().toISOString()
     );
-    const locallyCompletedIds = new Set(
-      (existingRows ?? [])
-        .filter((r) => r.is_completed)
-        .map((r) => r.canvas_assignment_id)
-    );
-
-    // Dismissed + Canvas now reports submitted → delete. The user dismissed
-    // this assignment; no need to resurrect it as a completed row.
-    const toDeleteIds: string[] = [];
-    for (const a of assignments) {
-      if (a.is_completed && dismissedIdMap.has(a.canvas_assignment_id)) {
-        toDeleteIds.push(dismissedIdMap.get(a.canvas_assignment_id)!);
-      }
-    }
 
     if (toDeleteIds.length > 0) {
       await serviceClient
@@ -162,18 +222,6 @@ export async function syncUserCanvas(
         .in("id", toDeleteIds)
         .throwOnError();
     }
-
-    // Build upsert payload, excluding every dismissed row (deleted or kept hidden).
-    const rows = assignments
-      .filter((a) => !dismissedIdMap.has(a.canvas_assignment_id))
-      .map(({ canvas_course_id, ...a }) => ({
-        ...a,
-        // Sticky completion: once done (locally or per Canvas), stays done.
-        is_completed: a.is_completed || locallyCompletedIds.has(a.canvas_assignment_id),
-        user_id: userId,
-        course_id: courseMap.get(canvas_course_id) ?? "",
-      }))
-      .filter((r) => r.course_id !== "");
 
     if (rows.length > 0) {
       await serviceClient
