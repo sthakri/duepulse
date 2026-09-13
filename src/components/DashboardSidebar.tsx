@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { unsubscribePushDevice } from "@/lib/push";
 import { useRouter } from "next/navigation";
 
 const NAV = [
@@ -93,6 +94,10 @@ export default function DashboardSidebar({
   }
 
   async function handleSignOut() {
+    // Tear down push BEFORE signOut: the DELETE endpoint needs a valid
+    // session, and the browser subscription would otherwise keep receiving
+    // nudges after logout.
+    await unsubscribePushDevice();
     await createClient().auth.signOut({ scope: "local" });
     router.push("/");
   }

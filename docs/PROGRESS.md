@@ -119,6 +119,15 @@ If `ENCRYPTION_KEY` needs to change:
 - **Leftover**: `/auth/callback` still handles signup-confirm links (unchanged, scanner-vulnerable but lower stakes).
 - **Retry fix**: verifyOtp consumes the code, so a submit where the code passed but `updateUser` rejected a weak password left retries hitting "invalid or expired". The page now skips verifyOtp when a session for that email already exists and goes straight to updateUser (HTTP-level proof: weak pass 422, re-verify 403, same-session compliant pass 200, sign-in 200).
 
+### Session 22 - Sign-out now stops push notifications on that device
+
+- **Report**: user logged out of the phone PWA and kept receiving nudges.
+- **Root cause**: `DashboardSidebar.handleSignOut` only called Supabase `signOut`. A Web Push subscription is browser-level, not tied to the auth session, and the `push_subscriptions` row survived, so the nudge engine kept sending. The `DELETE /api/push/subscribe` endpoint existed but was never called on logout.
+- **Fix**: new `unsubscribePushDevice()` (`src/lib/push.ts`) called at the top of `handleSignOut`, before `signOut` (the DELETE needs a valid session): deletes the server row for this device's endpoint, unsubscribes the browser PushManager, clears `push-synced:*` session markers. All best-effort (never blocks sign-out; a missed row is reaped by the existing 404/410 cleanup on next send).
+- **Checked, no change needed**: overdue once-a-day is already enforced (Section D nudge claim-before-send + `nudge_logs` unique index + 24h rolling dedup in `overdue-dedup.ts`, covered by `overdue-dedup.test.ts`). One nudge per overdue assignment per 24h.
+- **Sibling noted, untouched**: `OnboardingWizard` sign-out leaves push alone — onboarding never enables push (button lives in the dashboard), so no orphaned subscription is possible there.
+- 66/66 tests (3 new in `push-unsubscribe.test.ts`), lint/build green.
+
 ## Upcoming Sessions (v1.1 — post-launch)
 
 - Session 17: Soft Launch Prep + Analytics
