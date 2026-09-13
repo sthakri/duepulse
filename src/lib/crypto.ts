@@ -46,12 +46,9 @@ export async function decrypt(ciphertext: string): Promise<string> {
 export function isLikelyEncrypted(token: string): boolean {
   if (/^\d+~/.test(token)) return false;
   if (token.length < 36) return false;
-  try {
-    const decoded = Buffer.from(token, "base64");
-    return decoded.length > IV_LENGTH;
-  } catch {
-    return false;
-  }
+  // Buffer.from(base64) never throws on bad input — it just decodes garbage —
+  // so the length check IS the heuristic (IV_LEN bytes + ciphertext + tag).
+  return Buffer.from(token, "base64").length > IV_LENGTH;
 }
 
 export async function decryptOrRaw(token: string): Promise<string | null> {

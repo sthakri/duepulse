@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/server"
 import { env } from "@/lib/env"
 import { generateNudge, generateProductiveWindowNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
@@ -22,12 +23,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({}, { status: 404 })
   }
 
+  // Even in dev: require a session and only let the caller target their own
+  // user id — previously anyone passing ?userId= could read another user's
+  // assignment titles and trigger pushes to their devices.
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const parsed = nudgeTestQuerySchema.safeParse({
     userId: req.nextUrl.searchParams.get("userId"),
     type: req.nextUrl.searchParams.get("type") ?? "productive_window",
   })
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") }, { status: 422 })
+  }
+  if (parsed.data.userId !== user.id) {
+    return NextResponse.json({ error: "Can only trigger test nudges for your own account" }, { status: 403 })
   }
   const { userId, type } = parsed.data
 

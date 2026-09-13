@@ -25,7 +25,7 @@ function isPrivateIP(hostname: string): boolean {
   return /^(?:10\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.|0\.|127\.|169\.254\.|fc|fe80)/i.test(hostname);
 }
 
-function validateCanvasDomain(domain: string): void {
+async function validateCanvasDomain(domain: string): Promise<void> {
   const hostname = domain.replace(/:\d+$/, "").toLowerCase();
   if (isPrivateIP(hostname)) {
     throw new Error(`Blocked private/internal domain: "${domain}".`);
@@ -34,6 +34,20 @@ function validateCanvasDomain(domain: string): void {
     throw new Error(
       `Blocked disallowed Canvas domain: "${domain}". Only *.instructure.com, *.instructure.io, or standard school domains are permitted.`
     );
+  }
+  // DNS resolves HERE, server-side: a hostname that passes the allowlist regex
+  // can still point at internal IPs (SSRF). Resolve and reject private ranges.
+  const { promises: dns } = await import("dns");
+  try {
+    const addrs = await dns.lookup(hostname, { all: true });
+    for (const { address } of addrs) {
+      if (isPrivateIP(address)) {
+        throw new Error(`Blocked domain resolving to private IP: "${domain}".`);
+      }
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("Blocked")) throw err;
+    throw new Error(`Canvas domain does not resolve: "${domain}".`);
   }
 }
 
@@ -67,11 +81,16 @@ async function fetchAllPages<T>(
     const linkHeader = response.headers.get("Link");
     nextUrl = "";
     if (linkHeader) {
-      const links = linkHeader.split(", ");
-      for (const link of links) {
+      // The "next" URL carries our Bearer token on the NEXT request, so it
+      // must stay on the same host — a hostile/compromised Canvas host could
+      // otherwise redirect pagination anywhere and exfiltrate the token.
+      const expectedHost = new URL(nextUrl).host;
+      for (const link of linkHeader.split(",")) {
         const match = link.match(/<([^>]+)>;\s*rel="next"/);
         if (match) {
-          nextUrl = match[1];
+          try {
+            if (new URL(match[1]).host === expectedHost) nextUrl = match[1];
+          } catch { /* not a URL — stop paging */ }
           break;
         }
       }
@@ -85,7 +104,7 @@ export async function getCanvasCourses(
   token: string,
   domain: string
 ): Promise<CanvasCourse[]> {
-  validateCanvasDomain(domain);
+  await validateCanvasDomain(domain);
 
   const url = `https://${domain}/api/v1/courses?per_page=100&enrollment_state=active&enrollment_type=student&include[]=term`;
   const courses = await fetchAllPages<CanvasCourse>(token, domain, url);
@@ -98,8 +117,11 @@ export function isCanvasItemCompleted(item: Record<string, unknown>): boolean {
   const submissions = item.submissions;
   const plannerOverride = item.planner_override as Record<string, unknown> | undefined;
 
-  // 1. Check student planner override (marked complete / dismissed in Canvas UI)
-  if (plannerOverride?.marked_complete === true || plannerOverride?.dismissed === true) {
+  // 1. Check student planner override (marked complete in Canvas UI).
+  // NOTE: `dismissed` is deliberately NOT completion — hiding an item in the
+  // Canvas Planner is not doing the work. Counting it as completed inflated
+  // completion rates and silently dropped items from overdue lists.
+  if (plannerOverride?.marked_complete === true) {
     return true;
   }
 
@@ -149,7 +171,7 @@ export async function getCanvasAssignments(
   token: string,
   domain: string
 ): Promise<CanvasAssignment[]> {
-  validateCanvasDomain(domain);
+  await validateCanvasDomain(domain);
 
   const today = new Date();
   const startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -200,7 +222,7 @@ export async function testCanvasConnection(
   domain: string
 ): Promise<{ success: boolean; courseCount: number; error?: string }> {
   try {
-    validateCanvasDomain(domain);
+    await validateCanvasDomain(domain);
 
     const response = await fetch(
       `https://${domain}/api/v1/courses?per_page=50&enrollment_state=active&enrollment_type=student`,

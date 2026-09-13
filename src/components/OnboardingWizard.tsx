@@ -47,19 +47,25 @@ export default function OnboardingWizard({ userEmail }: { userEmail?: string }) 
   async function handleTestConnection() {
     setLoading(true);
     setError("");
-    const { data: { user } } = await createClient().auth.getUser();
-    if (!user) { setError("You must be logged in to connect Canvas."); setLoading(false); return; }
-    const res = await fetch("/api/canvas/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, domain }) });
-    const result: { success: boolean; courseCount: number; error?: string } = await res.json();
-    if (!result.success) {
-      setError(result.error ?? "Connection failed");
-    } else {
+    try {
+      const { data: { user } } = await createClient().auth.getUser();
+      if (!user) { setError("You must be logged in to connect Canvas."); return; }
+      const res = await fetch("/api/canvas/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, domain }) });
+      const result: { success: boolean; courseCount: number; error?: string } = await res.json();
+      if (!result.success) {
+        setError(result.error ?? "Connection failed");
+        return;
+      }
       const encrypted = await encryptToken(token);
-      await createClient().from("profiles").upsert({ id: user.id, canvas_domain: domain, canvas_token: encrypted, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      const { error: upsertError } = await createClient().from("profiles").upsert({ id: user.id, canvas_domain: domain, canvas_token: encrypted, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      if (upsertError) { setError("Connection works, but saving it failed — please try again."); return; }
       setCourseCount(result.courseCount);
       setStep(2);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Connection failed. Check your domain and token.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   function isIOS(): boolean {

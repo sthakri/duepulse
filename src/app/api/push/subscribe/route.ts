@@ -51,6 +51,16 @@ export async function POST(req: NextRequest) {
   );
 
   try {
+    // Endpoints are globally unique. Without this, a logged-in user could
+    // submit someone else's endpoint and steal/overwrite their row (their
+    // keys wouldn't match, silently killing the victim's notifications).
+    await serviceClient
+      .from("push_subscriptions")
+      .delete()
+      .eq("endpoint", endpoint)
+      .neq("user_id", userId)
+      .throwOnError();
+
     await serviceClient
       .from("push_subscriptions")
       .upsert(
@@ -62,6 +72,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Push subscribe error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// Unsubscribe: let a user purge their own push rows on demand (previously
+// they persisted until a failed send returned 404/410).
+export async function DELETE(req: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { success: rateLimitOk } = await ratelimit.limit(user.id);
+  if (!rateLimitOk) {
+    return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
+  }
+
+  const raw: unknown = await req.json();
+  const parsed = pushSubscribeSchema.partial({ p256dh: true, auth: true }).safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid endpoint" }, { status: 422 });
+  }
+
+  try {
+    // RLS scopes deletes to the caller's rows.
+    await supabase
+      .from("push_subscriptions")
+      .delete()
+      .eq("endpoint", parsed.data.endpoint)
+      .throwOnError();
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Push unsubscribe error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

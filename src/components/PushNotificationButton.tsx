@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { env } from "@/lib/env";
 
-type PushState = "idle" | "requesting" | "subscribed" | "denied" | "unsupported";
+type PushState = "loading" | "idle" | "requesting" | "subscribed" | "denied" | "unsupported";
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -19,43 +19,56 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export default function PushNotificationButton({ userId }: { userId: string }) {
-  const [state, setState] = useState<PushState>(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
-    if (Notification.permission === "denied") return "denied";
-    if (Notification.permission === "granted") return "idle";
-    return "idle";
-  });
+  // Start in "loading" so SSR and the first client render are IDENTICAL —
+  // reading Notification.permission in the initializer caused a hydration
+  // mismatch (server renders one branch, client another).
+  const [state, setState] = useState<PushState>("loading");
 
   useEffect(() => {
-    if (!("Notification" in window)) return;
-    if (Notification.permission !== "granted") return;
-    if (!("serviceWorker" in navigator)) return;
     let mounted = true;
-    navigator.serviceWorker.getRegistration("/")
+
+    async function postSubscription(sub: PushSubscription) {
+      const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+      // Skip the verify-POST if this endpoint was already server-confirmed
+      // this session — each POST counts against the 10/hour rate limit.
+      const cacheKey = `push-synced:${userId}`;
+      if (sessionStorage.getItem(cacheKey) === json.endpoint) return true;
+      const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth }) });
+      if (res.ok) {
+        sessionStorage.setItem(cacheKey, json.endpoint);
+        return true;
+      }
+      return false;
+    }
+
+    async function bootstrap() {
+      await Promise.resolve(); // settle out of the effect body (no sync setState)
+      if (!("Notification" in window)) { if (mounted) setState("unsupported"); return; }
+      if (Notification.permission === "denied") { if (mounted) setState("denied"); return; }
+      if (Notification.permission !== "granted" || !("serviceWorker" in navigator)) { if (mounted) setState(Notification.permission === "default" ? "idle" : "unsupported"); return; }
+      navigator.serviceWorker.getRegistration("/")
       .then(async (reg) => {
         if (!reg || !mounted) return;
-        const sub = await reg.pushManager.getSubscription();
-        if (!sub) { if (mounted) setState("idle"); return; }
-        const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+        // Subscription expired since last visit → getSubscription() is null.
+        // Re-subscribe ONLY if this browser previously synced one (session
+        // marker) — never auto-subscribe a user who never opted in.
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub && sessionStorage.getItem(`push-synced:${userId}`)) {
+          const vapidKey = urlBase64ToUint8Array(env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+          if (vapidKey.length !== 65 || vapidKey[0] !== 0x04) { if (mounted) setState("idle"); return; }
+          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey as unknown as ArrayBuffer });
+        }
+        if (!sub) { if (mounted) setState("idle"); return; } // fresh user — wait for them to click Enable
+        if (!mounted) return;
         try {
-          const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth }) });
-          if (res.ok && mounted) setState("subscribed");
+          if (await postSubscription(sub)) { if (mounted) setState("subscribed"); }
           else if (mounted) setState("idle");
         } catch (err) { console.warn("push re-association error:", err); if (mounted) setState("idle"); }
-
-        // Auto-renew when push subscription expires (browser fires this event).
-        reg.addEventListener("pushsubscriptionchange", async () => {
-          try {
-            const vapidKey = urlBase64ToUint8Array(env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
-            if (vapidKey.length !== 65 || vapidKey[0] !== 0x04) return;
-            const newSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey as unknown as ArrayBuffer });
-            const { endpoint, keys } = newSub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
-            const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint, p256dh: keys.p256dh, auth: keys.auth }) });
-            if (res.ok && mounted) setState("subscribed");
-          } catch {}
-        });
       })
       .catch(() => { if (mounted) setState("idle"); });
+    }
+
+    bootstrap().catch(() => { if (mounted) setState("idle"); });
     return () => { mounted = false; };
   }, [userId]);
 
@@ -67,14 +80,15 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
     if (permission !== "granted") { setState(permission === "denied" ? "denied" : "idle"); return; }
 
     try {
-      try {
-        const existing = await navigator.serviceWorker.getRegistration("/");
-        if (!existing) await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-      } catch {}
-
+      // Use the registration directly — awaiting navigator.serviceWorker.ready
+      // can hang forever if registration failed (registration rejected above
+      // would have been swallowed), leaving this button stuck "requesting".
       let registration: ServiceWorkerRegistration;
-      try { registration = await navigator.serviceWorker.ready; }
-      catch { toast.error("Push notifications require a service worker. Try again after setup."); setState("idle"); return; }
+      try {
+        registration =
+          (await navigator.serviceWorker.getRegistration("/")) ??
+          (await navigator.serviceWorker.register("/sw.js", { scope: "/" }));
+      } catch { toast.error("Push notifications require a service worker. Try again after setup."); setState("idle"); return; }
 
       if (!registration.pushManager) { toast.error("Push notifications require a service worker. Try again after setup."); setState("idle"); return; }
 
@@ -86,7 +100,11 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
 
       const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint, p256dh: keys.p256dh, auth: keys.auth }) });
       if (!res.ok) { toast.warning("Subscription saved locally - server sync will retry"); setState("idle"); }
-      else { toast.success("Nudges enabled"); setState("subscribed"); }
+      else {
+        sessionStorage.setItem(`push-synced:${userId}`, endpoint);
+        toast.success("Nudges enabled");
+        setState("subscribed");
+      }
     } catch (err) { console.error(err); toast.error("Failed to enable notifications"); setState("idle"); }
   }
 
@@ -100,8 +118,8 @@ export default function PushNotificationButton({ userId }: { userId: string }) {
     </span>
   );
 
-  if (state === "requesting") return (
-    <Button disabled className="bg-[#243044] border border-[#334155] text-[#94A3B8] rounded-xl h-9 shadow-none">
+  if (state === "loading" || state === "requesting") return (
+    <Button disabled aria-label={state === "loading" ? "Checking notification status" : undefined} className="bg-[#243044] border border-[#334155] text-[#94A3B8] rounded-xl h-9 shadow-none">
       <Skeleton className="h-4 w-24 bg-[#334155]" />
     </Button>
   );

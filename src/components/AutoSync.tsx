@@ -43,7 +43,19 @@ export default function AutoSync() {
             setTokenExpired(true);
             stopPolling();
             stoppedRef.current = true;
-            console.log("[auto-sync] Canvas auth failed — stopping auto-sync");
+            console.log("[auto-sync] Canvas auth failed — retrying in 30m so reconnect self-heals");
+            // The dashboard layout never remounts on in-app navigation, so a
+            // permanent stop here would survive the user reconnecting their
+            // token. Retry once after the backoff; success clears everything.
+            if (backoffTimeoutRef.current) clearTimeout(backoffTimeoutRef.current);
+            backoffTimeoutRef.current = setTimeout(() => {
+              stoppedRef.current = false;
+              if (!document.hidden) {
+                lastSyncRef.current = Date.now();
+                sync();
+                startPolling();
+              }
+            }, RATE_LIMIT_BACKOFF_MS);
           }
           return;
         }
