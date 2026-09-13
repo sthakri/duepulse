@@ -19,7 +19,7 @@ export default async function AssignmentsPage() {
   // This window MUST match the nudge-engine cleanup (COMPLETED_RETENTION_DAYS)
   // — if the engine deletes completed rows sooner than this, the Completed
   // tab and Insights completion stats silently shrink.
-  const fourteenDaysAgo = new Date(now.getTime() - COMPLETED_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const completedCutoff = new Date(now.getTime() - COMPLETED_RETENTION_DAYS * 24 * 60 * 60 * 1000);
   // Every incomplete assignment (any due date — old overdue ones must stay
   // visible so the overdue filter can't silently undercount) plus completed
   // rows touched in the retention window. updated_at moves on manual toggles
@@ -31,7 +31,7 @@ export default async function AssignmentsPage() {
       .select("id, title, due_at, points_possible, canvas_assignment_id, course_id, is_completed, courses(name, color)")
       .eq("user_id", userId)
       .is("dismissed_at", null)
-      .or(`is_completed.eq.false,and(is_completed.eq.true,updated_at.gte.${fourteenDaysAgo.toISOString()})`)
+      .or(`is_completed.eq.false,and(is_completed.eq.true,updated_at.gte.${completedCutoff.toISOString()})`)
       .order("due_at", { ascending: true, nullsFirst: false }),
     supabase.from("profiles").select("canvas_token, canvas_domain, timezone, last_synced_at").eq("id", userId).single(),
   ]);

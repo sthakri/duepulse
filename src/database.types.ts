@@ -109,6 +109,27 @@ export type Database = {
         }
         Relationships: []
       }
+      nudge_events: {
+        Row: {
+          id: string
+          nudge_type: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          nudge_type: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          nudge_type?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       nudge_logs: {
         Row: {
           assignment_id: string | null

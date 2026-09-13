@@ -150,5 +150,7 @@ async function notifyTokenExpired(
       .eq("nudge_type", "token_expired")
       .eq("sent_at", sentAt)
     console.log(`[canvas-sync] uid=${userId} released token_expired claim (0 devices delivered)`)
+  } else {
+    await serviceClient.from("nudge_events").insert({ user_id: userId, nudge_type: "token_expired" })
   }
 }

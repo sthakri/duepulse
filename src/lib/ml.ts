@@ -38,6 +38,19 @@ const PERSONAS: FocusPersona[] = [
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// productive_windows scores only ever GROW in the DB (+0.01 per touch, capped
+// at 1), so without decay "Peak Hour" is an all-time record that a stale habit
+// dominates forever. Decay at read time — 30-day half-life — so Insights and
+// nudge eligibility reflect current routines.
+export function decayedScore(score: number, updatedAt: string, now: Date): number {
+  const ageDays = Math.max(0, (now.getTime() - new Date(updatedAt).getTime()) / 86_400_000);
+  return score * Math.pow(0.5, ageDays / 30);
+}
+
+export function isActiveSlot(score: number, updatedAt: string, now: Date): boolean {
+  return decayedScore(score, updatedAt, now) >= 0.005;
+}
+
 function personaBucket(hour: number): FocusPersona["id"] {
   if (hour >= 5 && hour <= 8) return "earlyBird";
   if (hour >= 9 && hour <= 11) return "morningWorker";

@@ -8,8 +8,10 @@ export const FALLBACK_TIMEZONE = "America/Chicago";
 
 /** Completed assignments are kept visible this long, then hard-deleted.
  *  Single source of truth — the pages' "recently completed" window and the
- *  nudge-engine cleanup must agree or completed items/lifetime stats lie. */
-export const COMPLETED_RETENTION_DAYS = 14;
+ *  nudge-engine cleanup must agree or completed items/lifetime stats lie.
+ *  30 days: matches the Insights analytics window, which reads completed
+ *  rows — a shorter retention made Insights completion stats decay early. */
+export const COMPLETED_RETENTION_DAYS = 30;
 
 export function getDefaultTimezone(): string {
   if (typeof window !== "undefined") {

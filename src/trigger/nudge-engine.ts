@@ -16,6 +16,7 @@ import webpush from "web-push"
 import ws from "ws"
 
 import { filterDailyOverdueNudge, filterNeverNudgedOverdue } from "@/lib/overdue-dedup";
+import { isActiveSlot } from "@/lib/ml";
 export { filterDailyOverdueNudge, filterNeverNudgedOverdue };
 
 function isInQuietHours(
@@ -62,7 +63,7 @@ export const nudgeEngine = schedules.task({
     const [windowsResult, subsResult] = await Promise.all([
       serviceClient
         .from("productive_windows")
-        .select("user_id, hour_of_day, day_of_week")
+        .select("user_id, hour_of_day, day_of_week, score, updated_at")
         .gt("score", 0),
       serviceClient
         .from("push_subscriptions")
@@ -110,6 +111,9 @@ export const nudgeEngine = schedules.task({
     // Key: "${day_of_week}:${hour_of_day}" — must match both day AND hour, not just hour.
     const windowsByUser = new Map<string, Set<string>>()
     for (const w of allWindows) {
+      // Scores are all-time cumulative; slots whose score decayed to ~0 are
+      // stale habits and must stop triggering nudges (matches Insights page).
+      if (!isActiveSlot(w.score, w.updated_at, now)) continue
       if (!windowsByUser.has(w.user_id)) windowsByUser.set(w.user_id, new Set())
       windowsByUser.get(w.user_id)!.add(`${w.day_of_week}:${w.hour_of_day}`)
     }
@@ -259,6 +263,7 @@ export const nudgeEngine = schedules.task({
 
         if (delivered) {
           productiveWindowSent++
+          await serviceClient.from("nudge_events").insert({ user_id: userId, nudge_type: "productive_window" })
         } else {
           // Nothing went out — release the claim so the next run retries.
           await serviceClient.from("nudge_logs").delete()
@@ -414,6 +419,7 @@ export const nudgeEngine = schedules.task({
 
           if (delivered) {
             deadlineSent++
+            await serviceClient.from("nudge_events").insert({ user_id: userId, nudge_type: threshold.type })
           } else {
             // Nothing went out — release the claim so the next run retries.
             await serviceClient
@@ -564,6 +570,7 @@ export const nudgeEngine = schedules.task({
 
           if (delivered) {
             overdueSent++
+            await serviceClient.from("nudge_events").insert({ user_id: userId, nudge_type: "overdue" })
           } else {
             // Nothing went out — release the claim so the next run retries.
             await serviceClient

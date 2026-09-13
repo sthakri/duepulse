@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { analyzeProductiveWindows } from "@/lib/ml";
+import { analyzeProductiveWindows, decayedScore, isActiveSlot } from "@/lib/ml";
 import { formatLocalHour, getDefaultTimezone, getLocalDay } from "@/lib/time";
 import BehavioralInsightCard from "@/components/BehavioralInsightCard";
 import ProductiveWindowsChart from "@/components/ProductiveWindowsChart";
@@ -32,19 +32,28 @@ export default async function InsightsPage() {
   const [
     { data: pwRows },
     { data: profile },
-    { data: nudgeLogs },
+    { data: nudgeEvents },
     { data: allAssignments },
     { data: courses },
   ] = await Promise.all([
-    supabase.from("productive_windows").select("hour_of_day, day_of_week, score").eq("user_id", userId),
+    supabase.from("productive_windows").select("hour_of_day, day_of_week, score, updated_at").eq("user_id", userId),
     supabase.from("profiles").select("timezone").eq("id", userId).single(),
-    supabase.from("nudge_logs").select("nudge_type").eq("user_id", userId).gte("sent_at", thirtyDaysAgo),
+    // nudge_events = append-only send log (one row per delivered nudge).
+    // NOT nudge_logs — that's a dedup/claim table whose rows merge re-sends
+    // and cascade-delete on assignment completion, so it can't count sends.
+    supabase.from("nudge_events").select("nudge_type").eq("user_id", userId).gte("sent_at", thirtyDaysAgo),
     supabase.from("assignments").select("id, title, due_at, is_completed, course_id, points_possible").eq("user_id", userId).is("dismissed_at", null),
     supabase.from("courses").select("id, name, color").eq("user_id", userId),
   ]);
 
   const userTz = profile?.timezone ?? getDefaultTimezone();
-  const rows = pwRows ?? [];
+  // Stored scores are all-time cumulative; decayedScore applies a 30-day
+  // half-life so peak hour / heatmap / focus windows track current habits.
+  const rows = (pwRows ?? []).map((r) => ({
+    hour_of_day: r.hour_of_day,
+    day_of_week: r.day_of_week,
+    score: decayedScore(r.score, r.updated_at, now),
+  }));
   // Canvas only syncs the -30d/+60d window, so anything due earlier than
   // 30 days ago is stale (never refreshed or deleted). Excluding it keeps
   // completion/overdue numbers truthful instead of drifting forever.
@@ -104,9 +113,9 @@ export default async function InsightsPage() {
   // Count active (day, hour) slots — honest "enough data" signal. Counting
   // distinct weekdays instead would lock out users who study on a fixed
   // weekly schedule no matter how many days they've used the app.
-  const activeSlots = rows.filter((r) => r.score > 0).length;
+  const activeSlots = (pwRows ?? []).filter((r) => isActiveSlot(r.score, r.updated_at, now)).length;
 
-  const nudgeCounts = (nudgeLogs ?? []).reduce<Record<string, number>>((acc, l) => {
+  const nudgeCounts = (nudgeEvents ?? []).reduce<Record<string, number>>((acc, l) => {
     acc[l.nudge_type] = (acc[l.nudge_type] ?? 0) + 1;
     return acc;
   }, {});
@@ -354,7 +363,7 @@ export default async function InsightsPage() {
                 );
               })}
             </div>
-            <p className="text-[#64748B] text-xs mt-4">{totalNudges} total nudge{totalNudges !== 1 ? "s" : ""} this month</p>
+            <p className="text-[#64748B] text-xs mt-4">{totalNudges} total nudge{totalNudges !== 1 ? "s" : ""} in the last 30 days</p>
           </div>
         )}
       </main>

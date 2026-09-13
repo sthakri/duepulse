@@ -243,3 +243,25 @@ create policy "nudge_logs: owner update"
 create policy "nudge_logs: owner delete"
   on public.nudge_logs for delete
   using (auth.uid() = user_id);
+
+-- ============================================================
+-- TABLE: nudge_events
+-- Append-only per-send history (Insights "Nudge Summary" reads this;
+-- nudge_logs above is only a dedup/claim table, NOT a send log)
+-- ============================================================
+create table if not exists public.nudge_events (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  nudge_type  text not null check (nudge_type in ('productive_window', '12h', '6h', '1h', 'overdue', 'token_expired')),
+  sent_at     timestamptz not null default now()
+);
+
+create index if not exists nudge_events_user_time
+  on public.nudge_events (user_id, sent_at desc);
+
+alter table public.nudge_events enable row level security;
+
+-- Owner reads only; writes are service-role (RLS-bypassed).
+create policy "nudge_events: owner select"
+  on public.nudge_events for select
+  using (auth.uid() = user_id);

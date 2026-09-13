@@ -124,6 +124,10 @@ export async function GET(req: NextRequest) {
       { onConflict: "user_id,assignment_id,nudge_type" },
     )
 
+    if (results.some((r) => r.startsWith("✓"))) {
+      await serviceClient.from("nudge_events").insert({ user_id: userId, nudge_type: "overdue" })
+    }
+
     return NextResponse.json({ sent: true, type, assignment: assignment.title, nudge: nudgeText, devices: results, logError: logError?.message ?? null })
   }
 
@@ -192,6 +196,10 @@ export async function GET(req: NextRequest) {
     const { error: productiveLogError } = firstAssignment
       ? await serviceClient.from("nudge_logs").upsert(productiveClaim, { onConflict: "user_id,assignment_id,nudge_type" })
       : await serviceClient.from("nudge_logs").insert(productiveClaim)
+
+    if (results.some((r) => r.startsWith("✓"))) {
+      await serviceClient.from("nudge_events").insert({ user_id: userId, nudge_type: "productive_window" })
+    }
 
     return NextResponse.json({
       sent: true,
@@ -307,6 +315,10 @@ export async function GET(req: NextRequest) {
     })),
     { onConflict: "user_id,assignment_id,nudge_type", ignoreDuplicates: true },
   )
+
+  if (results.some((r) => r.startsWith("✓"))) {
+    await serviceClient.from("nudge_events").insert({ user_id: userId, nudge_type: type })
+  }
 
   return NextResponse.json({
     sent: true,
