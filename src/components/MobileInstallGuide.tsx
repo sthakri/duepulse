@@ -54,7 +54,7 @@ export default function MobileInstallGuide() {
         <div className="flex-1 min-w-0">
           <p className="text-[#F8FAFC] font-semibold text-sm">Add DuePulse to your Home Screen</p>
           <p className="text-[#94A3B8] text-xs mt-0.5 leading-relaxed">
-            Get push notifications and offline access — works best as a standalone app on {osName}.
+            Get push notifications and fast access from your Home Screen — works best as a standalone app on {osName}.
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">

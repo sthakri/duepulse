@@ -17,7 +17,7 @@ const features = [
     points: [
       "Pulls every assignment from every active course",
       "Respects your existing course structure and colors",
-      "Syncs in the background whenever you click Sync Now",
+      "Sync on demand with Sync Now, plus automatic background syncs twice an hour",
     ],
   },
   {

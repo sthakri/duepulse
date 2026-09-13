@@ -88,7 +88,7 @@ export default function ProductiveWindowsChart({ data, userTz }: Props) {
       .attr("opacity", (d) => (d.hour === peakHour ? 1 : d.score > 0 ? 0.75 : 0.1))
       .attr("rx", 2)
       .append("title")
-      .text((d) => `${formatLocalHour(d.hour, userTz)}: ${(d.score * 100).toFixed(0)} activity score`);
+      .text((d) => `${formatLocalHour(d.hour, userTz)}: ${(d.score * 100).toFixed(0)} pts`);
 
     // Hour ticks: 0, 6, 12, 18
     const tickHours = [0, 6, 12, 18, 23];
@@ -128,7 +128,7 @@ export default function ProductiveWindowsChart({ data, userTz }: Props) {
       <p className="text-[#64748B] text-[11px] mt-1">
         {peakHour !== null
           ? `You are most active around ${formatLocalHour(peakHour, userTz)}.`
-          : "Activity records automatically every time you visit DuePulse."}
+          : "Activity records automatically while you use the dashboard."}
       </p>
     </div>
   );

@@ -26,7 +26,7 @@ const steps = [
     number: "03",
     icon: Cpu,
     title: "Your focus patterns are learned",
-    body: "Every time you open DuePulse — on any device, at any hour — your visit is quietly logged. Over days and weeks, a personal model forms.",
+    body: "While you use the dashboard — on any device, at any hour — DuePulse quietly logs your active time. Over days and weeks, a personal model forms.",
     detail: 'Your "Focus Persona" (Early Bird, Night Owl, Weekend Grinder…) and your personal Power Block emerge automatically.',
   },
   {

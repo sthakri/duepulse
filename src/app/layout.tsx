@@ -22,6 +22,7 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="theme-color" content="#6366F1" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta

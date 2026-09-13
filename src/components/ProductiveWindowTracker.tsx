@@ -7,7 +7,7 @@ export default function ProductiveWindowTracker() {
     let mounted = true;
 
     async function touch() {
-      if (!mounted) return;
+      if (!mounted || document.hidden) return;
       try {
         await fetch("/api/productive-windows/touch", {
           method: "POST",

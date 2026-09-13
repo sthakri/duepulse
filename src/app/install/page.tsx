@@ -32,8 +32,10 @@ export default function InstallPage() {
   const [platform, setPlatform] = useState<Platform>(() => {
     if (typeof navigator === "undefined") return "ios";
     const ua = navigator.userAgent;
-    // iPadOS 13+ reports "Mac" UA — treat touch-capable Macs as iOS.
     if (/Android/i.test(ua)) return "android";
+    // iPadOS 13+ reports a Mac-like UA — a Mac with touch points is an iPad.
+    if (/iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
+    // Desktop or unknown: default to iOS copy.
     return "ios";
   });
 
@@ -77,7 +79,9 @@ export default function InstallPage() {
           Add DuePulse to Your Home Screen
         </h1>
         <p className="text-[#94A3B8] text-sm mt-3 max-w-xs leading-relaxed">
-          Push notifications and the full app experience only work when DuePulse is installed as a standalone app.
+          {platform === "ios"
+            ? "Push notifications and the full app experience only work when DuePulse is installed as a standalone app."
+            : "Push notifications work straight from Chrome — installing to your Home Screen just makes DuePulse feel like a native app."}
         </p>
       </div>
 
@@ -107,13 +111,20 @@ export default function InstallPage() {
             </div>
           ))}
         </div>
+        {platform === "ios" && (
+          <p className="text-[#64748B] text-xs leading-relaxed mt-4 pt-4 border-t border-[#334155]/70">
+            Web push requires iOS 16.4 or later.
+          </p>
+        )}
       </div>
 
       {/* Why it matters */}
       <div className="w-full max-w-xs rounded-[18px] bg-[#6366F1]/6 border border-[#6366F1]/20 p-4 mb-8">
         <p className="text-[#818CF8] text-sm font-semibold mb-1">Why does this matter?</p>
         <p className="text-[#94A3B8] text-sm leading-relaxed">
-          DuePulse&apos;s core feature is nudging you at the right time. Browser tabs can&apos;t deliver background push notifications — the Home Screen app can.
+          {platform === "ios"
+            ? "DuePulse\u2019s core feature is nudging you at the right time. Browser tabs can\u2019t deliver background push notifications \u2014 the Home Screen app can."
+            : "DuePulse\u2019s core feature is nudging you at the right time. Chrome already delivers them \u2014 the Home Screen app just makes DuePulse feel native."}
         </p>
       </div>
 
