@@ -110,6 +110,14 @@ If `ENCRYPTION_KEY` needs to change:
 - **"Due this week" stat vs upcoming filter mismatch**: new `this-week` filter in AssignmentsClient (now to now+7d), dashboard stat links to it. "Total assignments" relabeled "Open assignments".
 - **Canvas-completed items vanished from Completed filter**: sync upserts never touched `assignments.updated_at`. `buildSyncPlan` (new pure, tested fn in `canvas-sync.ts`) now stamps `updated_at` when Canvas flips a row to completed; dismiss and sticky-completion semantics unchanged (6 new tests, 74 total pass; lint + build green).
 - **Known leftovers**: `get_workload_heatmap` RPC in schema.sql is dead code (UTC-bucketed); delete in a future migration.
+### Session 21 - Password reset: magic link -> 8-digit email code
+
+- **Bug**: reset links landed on `/login?error=link-expired` on first click. Proven cause: single-use `{{ .ConfirmationURL }}` verify links get consumed by mail-scanner prefetch (reproduced: fetching the same link twice, 2nd returns `otp_expired`) and/or PKCE `code_verifier` loss when a mail app opens the link outside the requesting browser (`AuthPKCECodeVerifierMissingError`, auth-js 2.105.4 source). Both collapse into the same banner.
+- **Fix**: OTP code flow (Supabase docs' recommended Option 1 for prefetch). Login "Forgot password" now calls `resetPasswordForEmail` (no redirectTo) and routes to `/reset-password?email=...`; that page takes email + code + new password -> `verifyOtp({ email, token, type: 'recovery' })` -> `updateUser` -> dashboard. Code field accepts 8 digits (Supabase hosted now emits 8-digit OTPs).
+- **Verified E2E**: fresh throwaway user via Admin API, code minted via `generate_link.email_otp`, full browser flow in dev: verify -> password updated -> sign-in with new password; wrong-code path shows inline error. 63/63 tests, tsc/lint/build clean.
+- **Manual step needed**: Supabase Dashboard -> Authentication -> Email Templates -> "Reset password" must show `{{ .Token }}` and MUST NOT contain `{{ .ConfirmationURL }}` (a clickable link in the email = prefetch can still burn the code). Signup confirmation template unchanged.
+- **Leftover**: `/auth/callback` still handles signup-confirm links (unchanged, scanner-vulnerable but lower stakes).
+
 ## Upcoming Sessions (v1.1 — post-launch)
 
 - Session 17: Soft Launch Prep + Analytics

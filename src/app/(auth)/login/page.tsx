@@ -16,7 +16,6 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [resetSent, setResetSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   // Initial value reads the URL once — /auth/callback sends expired/reused
   // email links (confirm & reset) here as /login?error=link-expired.
@@ -35,15 +34,18 @@ export default function LoginPage() {
     const supabase = createClient();
 
     if (mode === "reset") {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-      });
+      // OTP code flow, not a magic link: one-time links get consumed by mail
+      // scanners/prefetch before the user clicks (otp_expired), and PKCE
+      // code links break when the mail app opens them in a different browser
+      // context than the one that requested the reset. A typed 6-digit code
+      // has no link to prefetch and no code_verifier to lose.
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
       setLoading(false);
       if (resetError) {
         setError(resetError.message);
         return;
       }
-      setResetSent(true);
+      router.push(`/reset-password?email=${encodeURIComponent(email)}`);
       return;
     }
 
@@ -146,24 +148,10 @@ export default function LoginPage() {
                 ? "Sign in to continue to your dashboard."
                 : mode === "signup"
                   ? "Start syncing your Canvas deadlines."
-                  : "Enter your email and we'll send you a reset link."}
+                  : "Enter your email and we'll send you a reset code."}
             </p>
           </div>
 
-          {mode === "reset" && resetSent ? (
-            <div className="space-y-5">
-              <p className="text-[#10B981] text-sm bg-[#10B981]/10 border border-[#10B981]/20 rounded-xl px-4 py-3">
-                Check your email — we&apos;ve sent you a password reset link.
-              </p>
-              <button
-                type="button"
-                onClick={() => { setMode("signin"); setResetSent(false); setError(""); }}
-                className="w-full text-center text-[#6366F1] hover:text-[#818CF8] text-sm font-medium transition-colors bg-transparent"
-              >
-                ← Back to sign in
-              </button>
-            </div>
-          ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-[#CBD5E1] text-sm font-medium">Email</Label>
@@ -225,10 +213,9 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full h-11 rounded-xl bg-[#6366F1] hover:bg-[#818CF8] text-white font-semibold shadow-[0_8px_25px_rgba(99,102,241,0.3)] transition-all duration-200 hover:scale-[1.01] disabled:opacity-60"
             >
-              {loading ? "Please wait…" : mode === "signin" ? "Sign In" : mode === "signup" ? "Sign Up" : "Send reset link"}
+              {loading ? "Please wait…" : mode === "signin" ? "Sign In" : mode === "signup" ? "Sign Up" : "Send reset code"}
             </Button>
           </form>
-          )}
 
           <p className="text-center text-[#94A3B8] text-sm mt-5">
             {mode === "signin" ? "Don't have an account? " : mode === "signup" ? "Already have an account? " : "Remembered it? "}

@@ -11,6 +11,14 @@ import { Button } from "@/components/ui/button";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  // Login redirects here as /reset-password?email=... after sending the code.
+  // Reading location once in an initializer avoids a useSearchParams+Suspense wrapper.
+  const [email, setEmail] = useState(() =>
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("email") ?? ""
+      : ""
+  );
+  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,6 +36,22 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     const supabase = createClient();
+
+    // The 6-digit code from the recovery email IS the verification — no link
+    // click, no PKCE verifier, so mail-scanner prefetch and cross-browser
+    // opens can't break the flow. verifyOtp signs the user in on success.
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: code.trim(),
+      type: "recovery",
+    });
+
+    if (verifyError) {
+      setLoading(false);
+      setError("That code is invalid or expired — request a new one from the sign-in page.");
+      return;
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setLoading(false);
 
@@ -83,11 +107,44 @@ export default function ResetPasswordPage() {
 
         <div className="w-full max-w-sm">
           <div className="mb-8">
-            <h1 className="text-[#F8FAFC] font-bold text-2xl mb-1">Choose a new password</h1>
-            <p className="text-[#94A3B8] text-sm">Enter your new password below.</p>
+            <h1 className="text-[#F8FAFC] font-bold text-2xl mb-1">Reset your password</h1>
+            <p className="text-[#94A3B8] text-sm">
+              We emailed you a reset code. Enter it below, then choose a new password.
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-[#CBD5E1] text-sm font-medium">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className={inputCls}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="code" className="text-[#CBD5E1] text-sm font-medium">Reset code</Label>
+              <Input
+                id="code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6,8}"
+                maxLength={8}
+                placeholder="12345678"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                required
+                className={`${inputCls} tracking-[0.5em] font-mono`}
+              />
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-[#CBD5E1] text-sm font-medium">New password</Label>
               <div className="relative">
@@ -136,7 +193,7 @@ export default function ResetPasswordPage() {
               disabled={loading}
               className="w-full h-11 rounded-xl bg-[#6366F1] hover:bg-[#818CF8] text-white font-semibold shadow-[0_8px_25px_rgba(99,102,241,0.3)] transition-all duration-200 hover:scale-[1.01] disabled:opacity-60"
             >
-              {loading ? "Please wait…" : "Update password"}
+              {loading ? "Please wait…" : "Verify code & update password"}
             </Button>
           </form>
 
