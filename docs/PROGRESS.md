@@ -117,6 +117,7 @@ If `ENCRYPTION_KEY` needs to change:
 - **Verified E2E**: fresh throwaway user via Admin API, code minted via `generate_link.email_otp`, full browser flow in dev: verify -> password updated -> sign-in with new password; wrong-code path shows inline error. 63/63 tests, tsc/lint/build clean.
 - **Manual step needed**: Supabase Dashboard -> Authentication -> Email Templates -> "Reset password" must show `{{ .Token }}` and MUST NOT contain `{{ .ConfirmationURL }}` (a clickable link in the email = prefetch can still burn the code). Signup confirmation template unchanged.
 - **Leftover**: `/auth/callback` still handles signup-confirm links (unchanged, scanner-vulnerable but lower stakes).
+- **Retry fix**: verifyOtp consumes the code, so a submit where the code passed but `updateUser` rejected a weak password left retries hitting "invalid or expired". The page now skips verifyOtp when a session for that email already exists and goes straight to updateUser (HTTP-level proof: weak pass 422, re-verify 403, same-session compliant pass 200, sign-in 200).
 
 ## Upcoming Sessions (v1.1 — post-launch)
 

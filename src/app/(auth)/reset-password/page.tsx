@@ -37,19 +37,28 @@ export default function ResetPasswordPage() {
     setLoading(true);
     const supabase = createClient();
 
-    // The 6-digit code from the recovery email IS the verification — no link
-    // click, no PKCE verifier, so mail-scanner prefetch and cross-browser
-    // opens can't break the flow. verifyOtp signs the user in on success.
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: "recovery",
-    });
+    // The emailed code IS the verification — no link click, no PKCE verifier,
+    // so mail-scanner prefetch and cross-browser opens can't break the flow.
+    // But verifyOtp CONSUMES the code: if a previous submit verified fine and
+    // only the new password failed the strength rules, a recovery session
+    // already exists and re-verifying would find the code burned. Skip the
+    // verify whenever this browser already holds a session for this email.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (verifyError) {
-      setLoading(false);
-      setError("That code is invalid or expired — request a new one from the sign-in page.");
-      return;
+    if (session?.user?.email?.toLowerCase() !== email.trim().toLowerCase()) {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: code.trim(),
+        type: "recovery",
+      });
+
+      if (verifyError) {
+        setLoading(false);
+        setError("That code is invalid or expired — request a new one from the sign-in page.");
+        return;
+      }
     }
 
     const { error: updateError } = await supabase.auth.updateUser({ password });
