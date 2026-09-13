@@ -9,16 +9,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "reset";
 
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+  // Initial value reads the URL once — /auth/callback sends expired/reused
+  // email links (confirm & reset) here as /login?error=link-expired.
+  const [error, setError] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("error") === "link-expired"
+      ? "That link has expired or was already used — request a new one."
+      : ""
+  );
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -27,6 +33,20 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
+
+    if (mode === "reset") {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      });
+      setLoading(false);
+      if (resetError) {
+        setError(resetError.message);
+        return;
+      }
+      setResetSent(true);
+      return;
+    }
+
     const result =
       mode === "signin"
         ? await supabase.auth.signInWithPassword({ email, password })
@@ -119,15 +139,31 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <div className="mb-8">
             <h1 className="text-[#F8FAFC] font-bold text-2xl mb-1">
-              {mode === "signin" ? "Welcome back" : "Create your account"}
+              {mode === "signin" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset your password"}
             </h1>
             <p className="text-[#94A3B8] text-sm">
               {mode === "signin"
                 ? "Sign in to continue to your dashboard."
-                : "Start syncing your Canvas deadlines."}
+                : mode === "signup"
+                  ? "Start syncing your Canvas deadlines."
+                  : "Enter your email and we'll send you a reset link."}
             </p>
           </div>
 
+          {mode === "reset" && resetSent ? (
+            <div className="space-y-5">
+              <p className="text-[#10B981] text-sm bg-[#10B981]/10 border border-[#10B981]/20 rounded-xl px-4 py-3">
+                Check your email — we&apos;ve sent you a password reset link.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setMode("signin"); setResetSent(false); setError(""); }}
+                className="w-full text-center text-[#6366F1] hover:text-[#818CF8] text-sm font-medium transition-colors bg-transparent"
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-[#CBD5E1] text-sm font-medium">Email</Label>
@@ -142,47 +178,38 @@ export default function LoginPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-[#CBD5E1] text-sm font-medium">Password</Label>
-                {mode === "signin" && (
-                  <button type="button" className="text-[#6366F1] text-xs hover:text-[#818CF8] transition-colors bg-transparent">
-                    Forgot password?
+            {mode !== "reset" && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-[#CBD5E1] text-sm font-medium">Password</Label>
+                  {mode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => { setMode("reset"); setError(""); }}
+                      className="text-[#6366F1] text-xs hover:text-[#818CF8] transition-colors bg-transparent"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className={`${inputCls} pr-10`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#94A3B8] transition-colors bg-transparent"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
-                )}
-              </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className={`${inputCls} pr-10`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#94A3B8] transition-colors bg-transparent"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            {mode === "signin" && (
-              <div className="flex items-center gap-2.5">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-[#334155] bg-[#0F172A] accent-[#6366F1]"
-                />
-                <Label htmlFor="remember-me" className="text-[#94A3B8] text-sm font-normal cursor-pointer">
-                  Remember me
-                </Label>
+                </div>
               </div>
             )}
 
@@ -198,12 +225,13 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full h-11 rounded-xl bg-[#6366F1] hover:bg-[#818CF8] text-white font-semibold shadow-[0_8px_25px_rgba(99,102,241,0.3)] transition-all duration-200 hover:scale-[1.01] disabled:opacity-60"
             >
-              {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Sign Up"}
+              {loading ? "Please wait…" : mode === "signin" ? "Sign In" : mode === "signup" ? "Sign Up" : "Send reset link"}
             </Button>
           </form>
+          )}
 
           <p className="text-center text-[#94A3B8] text-sm mt-5">
-            {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
+            {mode === "signin" ? "Don't have an account? " : mode === "signup" ? "Already have an account? " : "Remembered it? "}
             <button
               type="button"
               onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); }}

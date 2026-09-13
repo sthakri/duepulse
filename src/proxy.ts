@@ -2,7 +2,18 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/", "/login", "/features", "/how-it-works", "/install"];
+// /auth/callback MUST be public: email-confirmation and password-reset links
+// hit it precisely when the user has NO session. Gating it previously made
+// every email link dead-end at /login with the one-time code lost.
+const PUBLIC_PATHS = ["/", "/login", "/features", "/how-it-works", "/install", "/reset-password", "/auth/callback"];
+
+// Exact match or path-segment prefix — NOT raw startsWith, which would also
+// expose /login-whatever, /installjunk, /reset-password-2, etc.
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) =>
+    p === "/" ? pathname === "/" : pathname === p || pathname.startsWith(p + "/"),
+  );
+}
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -34,14 +45,24 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (!user && !PUBLIC_PATHS.some((p) => pathname === p || (p !== "/" && pathname.startsWith(p))) && !pathname.startsWith("/api") && !pathname.startsWith("/_next")) {
+  // A session refresh can set new cookies on supabaseResponse; redirects must
+  // carry them along or the refreshed session silently drops.
+  function redirectWithCookies(url: URL) {
+    const res = NextResponse.redirect(url);
+    supabaseResponse.headers
+      .getSetCookie()
+      .forEach((c) => res.headers.append("Set-Cookie", c));
+    return res;
+  }
+
+  if (!user && !isPublicPath(pathname) && !pathname.startsWith("/api") && !pathname.startsWith("/_next")) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithCookies(redirectUrl);
   }
 
   if (user && pathname === "/login") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return redirectWithCookies(new URL("/dashboard", request.url));
   }
 
   return supabaseResponse;
