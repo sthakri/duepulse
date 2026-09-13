@@ -32,7 +32,7 @@ export async function saveNotificationSettings(
     return { error: "Invalid timezone" };
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .update({
       quiet_hours_start: quietStart,
@@ -42,9 +42,12 @@ export async function saveNotificationSettings(
       updated_at: new Date().toISOString(),
       ...(timezoneRaw ? { timezone: timezoneRaw } : {}),
     })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .select("id");
 
-  if (error) return { error: "Failed to save settings" };
+  // update matching 0 rows is not an error — verify a row changed so the
+  // UI never toasts "saved" over a missing profile row.
+  if (error || !data || data.length === 0) return { error: "Failed to save settings" };
   return { success: true };
 }
 
@@ -62,14 +65,15 @@ export async function pauseNotificationsAction(
       ? new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
       : null;
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .update({
       nudge_paused_until: pausedUntil,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .select("id");
 
-  if (error) return { error: "Failed to update pause" };
+  if (error || !data || data.length === 0) return { error: "Failed to update pause" };
   return { success: true, pausedUntil };
 }

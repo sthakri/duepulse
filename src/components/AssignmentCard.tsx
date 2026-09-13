@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Check, X } from "lucide-react";
+import { useDuePulseStore } from "@/lib/store";
 
 interface AssignmentCardProps {
   id: string;
@@ -64,6 +65,7 @@ export default function AssignmentCard({
   is_completed = false,
 }: AssignmentCardProps) {
   const router = useRouter();
+  const bumpAssignmentsVersion = useDuePulseStore((s) => s.bumpAssignmentsVersion);
   const [dismissing, setDismissing] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(is_completed);
@@ -89,6 +91,7 @@ export default function AssignmentCard({
         return;
       }
       toast.success(nextState ? "Assignment marked as completed ✓" : "Assignment marked as incomplete");
+      bumpAssignmentsVersion();
       router.refresh();
     } catch {
       setCompleted(!nextState); // rollback
@@ -109,6 +112,7 @@ export default function AssignmentCard({
       const data = (await res.json()) as { success?: boolean; error?: string };
       if (!res.ok) { toast.error(data.error ?? "Dismiss failed"); return; }
       toast.success("Assignment dismissed");
+      bumpAssignmentsVersion();
       router.refresh();
     } catch { toast.error("Network error — dismiss failed"); }
     finally { setDismissing(false); }

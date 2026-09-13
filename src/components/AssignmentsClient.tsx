@@ -125,7 +125,9 @@ export default function AssignmentsClient({ assignments, hasCanvas, userTz }: Pr
       <div className="flex items-center gap-1 flex-wrap">
         {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => {
           const count = counts[f];
-          if (f !== "all" && count === 0) return null;
+          // Never hide the ACTIVE tab — landing on ?filter=overdue with zero
+          // overdue would otherwise render no selected tab at all.
+          if (f !== "all" && count === 0 && f !== activeFilter) return null;
           const isActive = activeFilter === f;
           return (
             <button key={f} type="button" onClick={() => setActiveFilter(f)}

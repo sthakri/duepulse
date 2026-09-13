@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
+import { FALLBACK_TIMEZONE } from "@/lib/time";
 
 type SettingsFormProps = {
   saveSettings: (formData: FormData) => Promise<{ success?: boolean; error?: string }>;
@@ -75,7 +76,7 @@ export default function SettingsForm({
   initialFrequency,
   initialThreshold,
   initialPausedUntil,
-  initialTimezone = "America/Chicago",
+  initialTimezone = FALLBACK_TIMEZONE,
 }: SettingsFormProps) {
   const [quietEnabled, setQuietEnabled] = useState(initialQuietStart !== null && initialQuietEnd !== null);
   const [quietStart, setQuietStart] = useState(initialQuietStart ?? 22);
@@ -85,6 +86,10 @@ export default function SettingsForm({
   const [timezone, setTimezone] = useState(initialTimezone);
   const [isPending, startTransition] = useTransition();
   const [isPausing, startPauseTransition] = useTransition();
+  // Pause state derives ONLY from `pausedUntil`, which the pause action
+  // returns. Reading just the initial prop left the UI claiming "resumed"
+  // (or showing no countdown) while the DB said otherwise.
+  const [pausedUntil, setPausedUntil] = useState<string | null>(initialPausedUntil);
   const [isPaused, setIsPaused] = useState(false);
   const [pausedRemaining, setPausedRemaining] = useState(0);
   const [pauseEnabled, setPauseEnabled] = useState(() => {
@@ -95,22 +100,31 @@ export default function SettingsForm({
 
   useEffect(() => {
     function update() {
-      if (!initialPausedUntil) { setIsPaused(false); setPausedRemaining(0); return; }
-      const paused = new Date(initialPausedUntil).getTime() > Date.now();
-      setIsPaused(paused);
-      if (paused) {
-        setPausedRemaining(Math.max(0, Math.round((new Date(initialPausedUntil).getTime() - Date.now()) / 60000)));
+      if (!pausedUntil) { setIsPaused(false); setPausedRemaining(0); return; }
+      const remaining = new Date(pausedUntil).getTime() - Date.now();
+      if (remaining > 0) {
+        setIsPaused(true);
+        setPauseEnabled(true);
+        setPausedRemaining(Math.max(0, Math.round(remaining / 60000)));
       } else {
+        setIsPaused(false);
         setPausedRemaining(0);
         setPauseEnabled(false);
+        setPausedUntil(null);
       }
     }
     update();
     const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
-  }, [initialPausedUntil]);
+  }, [pausedUntil]);
 
   function handleSave(formData: FormData) {
+    // Equal start/end is "off" in the nudge engine — saving it as enabled
+    // would show quiet hours while nothing is quiet. Reject instead.
+    if (quietEnabled && quietStart === quietEnd) {
+      toast.error("Quiet hours start and end can't be the same");
+      return;
+    }
     formData.set("quiet_hours_enabled", quietEnabled ? "on" : "off");
     formData.set("quiet_hours_start", String(quietStart));
     formData.set("quiet_hours_end", String(quietEnd));
@@ -129,9 +143,14 @@ export default function SettingsForm({
     fd.set("hours", String(hours));
     startPauseTransition(async () => {
       const result = await pauseNotifications(fd);
-      if (result.error) toast.error(result.error);
-      else if (hours === 0) toast.success("Notifications resumed");
-      else toast.success(`Notifications paused for ${hours}h`);
+      if (result.error) {
+        toast.error(result.error);
+        setPauseEnabled(false); // revert the toggle — the pause never persisted
+      } else {
+        setPausedUntil(result.pausedUntil ?? null); // countdown derives from this
+        if (hours === 0) toast.success("Notifications resumed");
+        else toast.success(`Notifications paused for ${hours}h`);
+      }
     });
   }
 
@@ -226,7 +245,7 @@ export default function SettingsForm({
                     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
                     if (detected) {
                       setTimezone(detected);
-                      toast.success(`Timezone set to ${detected}`);
+                      toast.success(`Timezone set to ${detected} — click Save Settings to apply`);
                     }
                   }
                 }}

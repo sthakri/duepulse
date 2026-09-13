@@ -4,7 +4,6 @@ import SyncNowButton from "@/components/SyncNowButton";
 import WorkloadHeatmap from "@/components/WorkloadHeatmap";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import MobileInstallGuide from "@/components/MobileInstallGuide";
-import ProductiveWindowTracker from "@/components/ProductiveWindowTracker";
 import { getLocalDate, getDefaultTimezone } from "@/lib/time";
 import { BookOpen, AlertTriangle, CalendarClock, RefreshCw } from "lucide-react";
 import Link from "next/link";
@@ -77,7 +76,6 @@ export default async function DashboardPage() {
       </header>
 
       <main className="flex-1 px-5 py-6 sm:px-6 sm:py-7 max-w-7xl w-full mx-auto">
-        <ProductiveWindowTracker />
         <MobileInstallGuide />
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           {/* Heatmap */}

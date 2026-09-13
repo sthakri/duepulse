@@ -4,7 +4,12 @@ const DAY_NAMES: Record<string, number> = {
 
 // Trigger.dev workers and CI machines resolve to Etc/UTC; the product default is Central US.
 // ponytail: hardcoded fallback — revert to per-request tz detection only if users outside US show up.
-const FALLBACK_TIMEZONE = "America/Chicago";
+export const FALLBACK_TIMEZONE = "America/Chicago";
+
+/** Completed assignments are kept visible this long, then hard-deleted.
+ *  Single source of truth — the pages' "recently completed" window and the
+ *  nudge-engine cleanup must agree or completed items/lifetime stats lie. */
+export const COMPLETED_RETENTION_DAYS = 14;
 
 export function getDefaultTimezone(): string {
   if (typeof window !== "undefined") {
@@ -60,29 +65,27 @@ export function formatClockTime(instant: Date, tz: string): string {
   }).format(instant);
 }
 
-export function formatLocalHour(hour: number, tz?: string): string {  const normHour = ((hour % 24) + 24) % 24;
+/** "2 PM" — a bare hour-of-day, timezone-agnostic. Used for aggregate labels
+ *  (peak hour, focus blocks) that span many dates; appending a tz abbreviation
+ *  would take TODAY's DST state, which is wrong for half the year. */
+export function formatLocalHour(hour: number, tz?: string): string {
+  void tz; // kept for call-site API; bare hour is deliberate (see jsdoc)
+  const normHour = ((hour % 24) + 24) % 24;
   const period = normHour >= 12 ? "PM" : "AM";
   const h12 = normHour === 0 ? 12 : normHour > 12 ? normHour - 12 : normHour;
-  const timeStr = `${h12} ${period}`;
-  if (!tz) return timeStr;
-  try {
-    const abbr = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      timeZoneName: "short",
-    })
-      .formatToParts(new Date())
-      .find((p) => p.type === "timeZoneName")?.value ?? "";
-    return abbr ? `${timeStr} ${abbr}` : timeStr;
-  } catch {
-    return timeStr;
-  }
+  return `${h12} ${period}`;
 }
 
 export function getDayRange(date: Date, tz: string, days: number): string[] {
+  // Step local CALENDAR days, not 24h chunks — on the 25-hour fall-back DST
+  // day, plain +86400000 can emit the same local date twice (double-counting
+  // that day in the 3-day stress windows).
   const result: string[] = [];
-  for (let i = 0; i < days; i++) {
-    const dt = new Date(date.getTime() + i * 86_400_000);
-    result.push(getLocalDate(dt, tz));
+  let cursor = new Date(date);
+  while (result.length < days) {
+    const key = getLocalDate(cursor, tz);
+    if (result[result.length - 1] !== key) result.push(key);
+    cursor = new Date(cursor.getTime() + 86_400_000);
   }
   return result;
 }

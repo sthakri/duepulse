@@ -43,7 +43,7 @@ export async function GET() {
 
   const { data: assignments } = await supabase
     .from("assignments")
-    .select("due_at, points_possible")
+    .select("due_at")
     .eq("user_id", user.id)
     .eq("is_completed", false)
     .not("due_at", "is", null)
@@ -61,7 +61,7 @@ export async function GET() {
       peakWindowStart: null,
       peakWindowEnd: null,
       assignmentCount: 0,
-      totalUpcoming: 0,
+      totalUpcoming,
     });
   }
 

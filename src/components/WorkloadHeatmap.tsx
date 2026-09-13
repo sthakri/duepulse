@@ -65,22 +65,22 @@ export default function WorkloadHeatmap({ data, userTz }: Props) {
     const todayDow = getLocalDay(now, userTz);
 
     const dowOff = todayDow === 0 ? -6 : 1 - todayDow;
-    const monday = new Date(now.getTime() + dowOff * 86_400_000);
+    // Calendar math from Monday's LOCAL date in UTC midnight space — adding
+    // 86_400_000 ms to a Date can duplicate a local date on the 25h DST
+    // fall-back day (duplicate heatmap cell, double-counted stats).
+    const mondayStr = getLocalDate(new Date(now.getTime() + dowOff * 86_400_000), userTz);
+    const [my, mm, md] = mondayStr.split("-").map(Number);
 
     const days: DayEntry[] = Array.from({ length: 42 }, (_, i) => {
       const col = Math.floor(i / 7);
       const row = i % 7;
-      const dt = new Date(monday.getTime() + (col * 7 + row) * 86_400_000);
-      const dateStr = getLocalDate(dt, userTz);
-      const [y, m, d] = dateStr.split("-").map(Number);
-      return { date: new Date(Date.UTC(y, m - 1, d)), dateStr, col, row };
+      const date = new Date(Date.UTC(my, mm - 1, md + col * 7 + row));
+      return { date, dateStr: date.toISOString().slice(0, 10), col, row };
     });
 
-    const weekStarts: Date[] = Array.from({ length: 6 }, (_, i) => {
-      const dt = new Date(monday.getTime() + i * 7 * 86_400_000);
-      const [y, m, d] = getLocalDate(dt, userTz).split("-").map(Number);
-      return new Date(Date.UTC(y, m - 1, d));
-    });
+    const weekStarts: Date[] = Array.from({ length: 6 }, (_, i) =>
+      new Date(Date.UTC(my, mm - 1, md + i * 7))
+    );
 
     function redraw() {
       d3.select(svg).selectAll("*").remove();

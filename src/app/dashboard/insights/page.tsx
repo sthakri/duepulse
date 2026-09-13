@@ -58,7 +58,10 @@ export default async function InsightsPage() {
   // ── Assignment Workload Analytics ────────────────────────────────────────────
   const totalAssignments = assignments.length;
   const completedCount = assignments.filter((a) => a.is_completed).length;
-  const overdueCount = assignments.filter((a) => !a.is_completed && a.due_at && new Date(a.due_at) < now).length;
+  // Overdue counts ALL incomplete past-due rows, not the 30-day window —
+  // this number must match the dashboard's Overdue stat, which has no floor.
+  const allRows = allAssignments ?? [];
+  const overdueCount = allRows.filter((a) => !a.is_completed && a.due_at && new Date(a.due_at) < now).length;
   const completionRate = totalAssignments > 0 ? Math.round((completedCount / totalAssignments) * 100) : 0;
 
   // Deadline distribution by day of week
@@ -265,6 +268,11 @@ export default async function InsightsPage() {
                     </div>
                   );
                 })}
+                {courseAnalytics.length > 4 && (
+                  <p className="text-[#64748B] text-xs text-center pt-1">
+                    +{courseAnalytics.length - 4} more course{courseAnalytics.length - 4 !== 1 ? "s" : ""}
+                  </p>
+                )}
               </div>
             )}
 
@@ -277,7 +285,7 @@ export default async function InsightsPage() {
         {/* Activity Heatmap 7x24 */}
         <div className="rounded-[18px] bg-[#1E293B] border border-[#334155]/70 p-5 sm:p-6 overflow-x-auto">
           <h2 className="text-[#F8FAFC] font-semibold text-base mb-1">Activity Heatmap (7 × 24)</h2>
-          <p className="text-[#64748B] text-xs mb-5">When you open DuePulse in your local timezone ({userTz}) — brighter = higher engagement</p>
+          <p className="text-[#64748B] text-xs mb-5">When you&apos;re active on the dashboard, local time ({userTz}) — brighter = higher engagement</p>
           <div className="min-w-[560px]">
             {/* Hour labels */}
             <div className="flex items-center mb-1 ml-9">
@@ -305,7 +313,7 @@ export default async function InsightsPage() {
                           backgroundColor: `rgba(99,102,241,${alpha.toFixed(2)})`,
                           border: score > 0 ? "none" : "1px solid rgba(51,65,85,0.5)",
                         }}
-                        title={`${day} ${formatLocalHour(h, userTz)}: ${(score * 100).toFixed(0)}%`}
+                        title={`${day} ${formatLocalHour(h, userTz)}: ${(score * 100).toFixed(0)} pts`}
                       />
                     );
                   })}

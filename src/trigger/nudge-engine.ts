@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr"
 import { env } from "@/lib/env"
 import { generateNudge, generateProductiveWindowNudge } from "@/lib/nim"
 import { sendPushNotification } from "@/lib/webpush"
-import { getLocalHour, getLocalDay, getDefaultTimezone, formatClockTime, coerceTimezone } from "@/lib/time"
+import { getLocalHour, getLocalDay, getDefaultTimezone, formatClockTime, coerceTimezone, COMPLETED_RETENTION_DAYS } from "@/lib/time"
 import {
   pickDeadlineThreshold,
   formatRemaining,
@@ -396,7 +396,9 @@ export const nudgeEngine = schedules.task({
               keys: { p256dh: sub.p256dh, auth: sub.auth },
             }
             try {
-              await sendPushNotification(subscription, message, notifTitle)
+              // Expire with the deadline itself — a "due in 1h" nudge held by
+              // the push service must not ping the student 20 hours late.
+              await sendPushNotification(subscription, message, notifTitle, Math.max(60, Math.floor(remainingMs / 1000)))
               delivered = true
               console.log(`[nudge-engine] Section B uid=${userId} ${threshold.type} push sent successfully ✓`)
             } catch (err: unknown) {
@@ -435,18 +437,20 @@ export const nudgeEngine = schedules.task({
     console.log(`[nudge-engine] Section B done: deadline_sent=${deadlineSent}`)
 
     // ── Section C: Cleanup completed assignments ──────────────────────────────
-    // Hard-delete assignments marked completed more than 3 days ago.
+    // Hard-delete assignments marked completed more than COMPLETED_RETENTION_DAYS
+    // (14) ago — MUST match the "recently completed" window on the dashboard
+    // pages, or Completed tabs and Insights completion stats silently decay.
     // nudge_logs cascade-deletes via FK, so no orphan cleanup needed.
-    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
+    const retentionCutoff = new Date(now.getTime() - COMPLETED_RETENTION_DAYS * 24 * 60 * 60 * 1000)
     let cleanedUp = 0
     try {
       const { count } = await serviceClient
         .from("assignments")
         .delete({ count: "exact" })
         .eq("is_completed", true)
-        .lt("updated_at", threeDaysAgo.toISOString())
+        .lt("updated_at", retentionCutoff.toISOString())
       cleanedUp = count ?? 0
-      console.log(`[nudge-engine] Section C: deleted ${cleanedUp} completed assignment(s) older than 3 days`)
+      console.log(`[nudge-engine] Section C: deleted ${cleanedUp} completed assignment(s) older than ${COMPLETED_RETENTION_DAYS} days`)
     } catch (err) {
       console.error("[nudge-engine] Section C cleanup error:", err)
     }
@@ -479,6 +483,9 @@ export const nudgeEngine = schedules.task({
         }
 
         // Past-due, incomplete, non-dismissed assignments for this user.
+        // Fetch up to 25 (not just 5): with >5 overdue, the oldest 5 once
+        // fit and then got deduped — items 6+ could NEVER be nudged. Dedup
+        // happens AFTER the fetch, then we cap sends at 5.
         const { data: overdueAssignments, error: overdueError } = await serviceClient
           .from("assignments")
           .select("id, title, due_at, courses(name)")
@@ -487,7 +494,7 @@ export const nudgeEngine = schedules.task({
           .is("dismissed_at", null)
           .lt("due_at", now.toISOString())
           .order("due_at", { ascending: true })
-          .limit(5)
+          .limit(25)
 
         if (overdueError) {
           console.error(`[nudge-engine] Section D uid=${userId} overdue query error:`, overdueError)
@@ -505,7 +512,8 @@ export const nudgeEngine = schedules.task({
           .in("assignment_id", assignmentIds)
           .gte("sent_at", twentyFourHoursAgo.toISOString())
 
-        const toNudge = filterDailyOverdueNudge(overdueAssignments, existingOverdueLogs ?? [], now)
+        // Cap pushes per run AFTER the 24h dedup so the overdue queue rotates.
+        const toNudge = filterDailyOverdueNudge(overdueAssignments, existingOverdueLogs ?? [], now).slice(0, 5)
         if (toNudge.length === 0) {
           console.log(`[nudge-engine] Section D uid=${userId} all overdue already nudged within last 24h — skipping`)
           return

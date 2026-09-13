@@ -150,18 +150,19 @@ export async function syncUserCanvas(
     return { ok: false, reason: "canvas_error", message };
   }
 
-  try {
-    // Canvas answered, so the account is reachable — stamp before anything
-    // else, including the zero-assignment early return below. The UI shows
-    // this as "Last sync"; profiles.updated_at can't serve here because it
-    // only moves on settings edits.
-    await serviceClient
+  // The UI shows last_synced_at as "Last sync". It must describe data the
+  // user can actually see, so stamp only AFTER the writes below succeed —
+  // stamping first showed "just now" over stale data when writes failed.
+  const stampLastSync = () =>
+    serviceClient
       .from("profiles")
       .update({ last_synced_at: new Date().toISOString() })
       .eq("id", userId)
       .throwOnError();
 
+  try {
     if (assignments.length === 0) {
+      await stampLastSync();
       return { ok: true, synced: 0 };
     }
 
@@ -230,7 +231,10 @@ export async function syncUserCanvas(
         .throwOnError();
     }
 
-    return { ok: true, synced: assignments.length };
+    await stampLastSync();
+    // rows written, not raw Canvas count — dismissed-skipped and
+    // course-less items were never persisted, so don't claim them.
+    return { ok: true, synced: rows.length };
   } catch (err) {
     console.error("Supabase sync error:", err);
     return { ok: false, reason: "db_error", message: "Database error" };

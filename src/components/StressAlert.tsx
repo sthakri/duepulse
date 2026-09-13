@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AlertTriangle, Info, X } from "lucide-react";
+import { useDuePulseStore } from "@/lib/store";
 
 interface StressData { stressLevel: "low" | "medium" | "high"; pileUpDetected: boolean; peakWindowStart: string | null; peakWindowEnd: string | null; assignmentCount: number; totalUpcoming: number }
 
@@ -17,12 +18,16 @@ export default function StressAlert({ userId }: { userId: string }) {
     catch { return false; }
   });
 
+  const assignmentsVersion = useDuePulseStore((s) => s.assignmentsVersion);
+
   useEffect(() => {
     fetch("/api/stress").then((r) => r.json()).then((d) => {
       if (d && typeof d.stressLevel === "string") setData(d);
       else setData(null);
     }).catch(() => setData(null));
-  }, [userId]);
+    // assignmentsVersion refetches after complete/dismiss — the count shown
+    // here must drop as the user works through their list.
+  }, [userId, assignmentsVersion]);
 
   if (!data || data.stressLevel === "low" || dismissed) return null;
 

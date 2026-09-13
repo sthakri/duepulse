@@ -43,15 +43,20 @@ export async function POST(req: NextRequest) {
 
   const { assignmentId } = parsed.data;
 
-  // RLS enforces user_id match — only the owner's row updates.
-  const { error } = await supabase
+  // RLS enforces user_id match — only the owner's row updates. verify a row
+  // actually changed; double-dismiss / bad ids must not toast success.
+  const { data, error } = await supabase
     .from("assignments")
     .update({ dismissed_at: new Date().toISOString() })
     .eq("id", assignmentId)
-    .is("dismissed_at", null);
+    .is("dismissed_at", null)
+    .select("id");
 
   if (error) {
     return NextResponse.json({ error: "Failed to dismiss assignment" }, { status: 500 });
+  }
+  if (!data || data.length === 0) {
+    return NextResponse.json({ error: "Assignment not found or already dismissed" }, { status: 404 });
   }
 
   return NextResponse.json({ success: true });

@@ -4,6 +4,7 @@ import SettingsForm from "@/components/SettingsForm";
 import TestNotifButton from "@/components/TestNotifButton";
 import PushNotificationButton from "@/components/PushNotificationButton";
 import { saveNotificationSettings, pauseNotificationsAction } from "@/app/actions";
+import { FALLBACK_TIMEZONE } from "@/lib/time";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 
@@ -71,7 +72,7 @@ export default async function SettingsPage() {
             initialFrequency={profile?.nudge_frequency ?? "normal"}
             initialThreshold={profile?.stress_threshold ?? 5}
             initialPausedUntil={profile?.nudge_paused_until ?? null}
-            initialTimezone={profile?.timezone ?? "America/Chicago"}
+            initialTimezone={profile?.timezone ?? FALLBACK_TIMEZONE}
           />
 
           {/* Account */}

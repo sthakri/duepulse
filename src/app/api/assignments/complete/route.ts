@@ -43,17 +43,22 @@ export async function POST(req: NextRequest) {
 
   const { assignmentId, completed } = parsed.data;
 
-  // RLS enforces user_id match — only the owner's row updates.
-  const { error } = await supabase
+  // RLS enforces user_id match — only the owner's row updates. verify a row
+  // actually changed; otherwise the UI would toast success over a no-op.
+  const { data, error } = await supabase
     .from("assignments")
     .update({
       is_completed: completed,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", assignmentId);
+    .eq("id", assignmentId)
+    .select("id");
 
   if (error) {
     return NextResponse.json({ error: "Failed to update assignment completion status" }, { status: 500 });
+  }
+  if (!data || data.length === 0) {
+    return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
   }
 
   return NextResponse.json({ success: true, is_completed: completed });

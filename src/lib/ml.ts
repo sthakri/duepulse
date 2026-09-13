@@ -139,7 +139,9 @@ function findFocusBlock(patterns: DetectedPattern[], userTz?: string): FocusBloc
   return {
     startHour: maxBlockStart,
     endHour: maxBlockEnd,
-    label: `${formatHour(maxBlockStart, userTz)} – ${formatHour(maxBlockEnd, userTz)}`,
+    // Hour 16 covers 16:00–17:00, so the label renders end + 1. Without this
+    // a 2–5 PM block displayed as "2 PM – 4 PM".
+    label: `${formatHour(maxBlockStart, userTz)} – ${formatHour(maxBlockEnd + 1, userTz)}`,
   };
 }
 

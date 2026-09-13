@@ -24,8 +24,8 @@ describe("isCanvasItemCompleted", () => {
     expect(isCanvasItemCompleted({ planner_override: { marked_complete: true } })).toBe(true);
   });
 
-  it("returns true when student planner override dismissed is true", () => {
-    expect(isCanvasItemCompleted({ planner_override: { dismissed: true } })).toBe(true);
+  it("returns false when only planner override dismissed is true (hiding ≠ completing)", () => {
+    expect(isCanvasItemCompleted({ planner_override: { dismissed: true } })).toBe(false);
   });
 
   it("returns true when submissions is boolean true", () => {
