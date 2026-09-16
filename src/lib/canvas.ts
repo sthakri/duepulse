@@ -51,7 +51,7 @@ async function validateCanvasDomain(domain: string): Promise<void> {
   }
 }
 
-async function fetchAllPages<T>(
+export async function fetchAllPages<T>(
   token: string,
   domain: string,
   url: string
@@ -79,12 +79,15 @@ async function fetchAllPages<T>(
     all.push(...data);
 
     const linkHeader = response.headers.get("Link");
+    // Host of the page we JUST fetched, captured before clearing nextUrl.
+    // (This used to read nextUrl after clearing it, so any Link header
+    // threw "Invalid URL" and killed every sync.)
+    const expectedHost = new URL(nextUrl).host;
     nextUrl = "";
     if (linkHeader) {
       // The "next" URL carries our Bearer token on the NEXT request, so it
       // must stay on the same host — a hostile/compromised Canvas host could
       // otherwise redirect pagination anywhere and exfiltrate the token.
-      const expectedHost = new URL(nextUrl).host;
       for (const link of linkHeader.split(",")) {
         const match = link.match(/<([^>]+)>;\s*rel="next"/);
         if (match) {
