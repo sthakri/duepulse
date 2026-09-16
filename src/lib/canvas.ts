@@ -167,6 +167,52 @@ export function isCanvasItemCompleted(item: Record<string, unknown>): boolean {
   return false;
 }
 
+// Canvas changes the type of gradable items in planner items: an assignment
+// that links to a quiz arrives with plannable_type "quiz", and a graded
+// discussion arrives as "discussion_topic" (planner_item_json in canvas-lms
+// overwrites the type and plannable_id with the quiz or topic id). Filtering
+// on "assignment" alone dropped every classic quiz and graded discussion.
+const PLANNABLE_SYNCED_TYPES = new Set(["assignment", "quiz", "discussion_topic"]);
+
+/**
+ * Map one planner item to an assignment row, or null for types we do not
+ * track (planner notes, wiki pages, calendar events, announcements).
+ * Graded quizzes and discussions carry their real assignment id at
+ * plannable.assignment_id. Use it so the row key stays in the assignment id
+ * space. Ungraded ones have assignment_id null and fall back to plannable_id.
+ * ponytail: quiz and discussion ids live in different tables than assignment
+ * ids, so a same number collision is possible in theory; the full fix is a
+ * type column in the schema, not worth it today.
+ */
+export function plannerItemToAssignment(item: unknown): CanvasAssignment | null {
+  if (typeof item !== "object" || item === null) return null;
+  const record = item as Record<string, unknown>;
+  if (typeof record.plannable_type !== "string" || !PLANNABLE_SYNCED_TYPES.has(record.plannable_type)) {
+    return null;
+  }
+  const plannable = record.plannable as Record<string, unknown> | undefined;
+  return {
+    canvas_assignment_id: Number(plannable?.assignment_id ?? record.plannable_id),
+    canvas_course_id: Number(record.course_id),
+    title: String(plannable?.title ?? ""),
+    due_at: typeof plannable?.due_at === "string"
+      ? plannable.due_at
+      : typeof record.plannable_date === "string"
+      ? record.plannable_date
+      : null,
+    points_possible:
+      plannable?.points_possible != null
+        ? Number(plannable.points_possible)
+        : null,
+    html_url: typeof record.html_url === "string" ? record.html_url : null,
+    submission_types: Array.isArray(plannable?.submission_types)
+      ? (plannable.submission_types as string[])
+      : [],
+    is_completed: isCanvasItemCompleted(record),
+    priority: 3,
+  };
+}
+
 export async function getCanvasAssignments(
   token: string,
   domain: string
@@ -186,35 +232,8 @@ export async function getCanvasAssignments(
   const items = await fetchAllPages<unknown>(token, domain, assignmentsUrl);
 
   return items
-    .filter(
-      (item): item is Record<string, unknown> =>
-        typeof item === "object" &&
-        item !== null &&
-        (item as Record<string, unknown>).plannable_type === "assignment"
-    )
-    .map((item) => {
-      const plannable = item.plannable as Record<string, unknown> | undefined;
-      return {
-        canvas_assignment_id: Number(item.plannable_id),
-        canvas_course_id: Number(item.course_id),
-        title: String(plannable?.title ?? ""),
-        due_at: typeof plannable?.due_at === "string"
-          ? plannable.due_at
-          : typeof item.plannable_date === "string"
-          ? item.plannable_date
-          : null,
-        points_possible:
-          plannable?.points_possible != null
-            ? Number(plannable.points_possible)
-            : null,
-        html_url: typeof item.html_url === "string" ? item.html_url : null,
-        submission_types: Array.isArray(plannable?.submission_types)
-          ? (plannable.submission_types as string[])
-          : [],
-        is_completed: isCanvasItemCompleted(item),
-        priority: 3,
-      };
-    });
+    .map(plannerItemToAssignment)
+    .filter((a): a is CanvasAssignment => a !== null);
 }
 
 export async function testCanvasConnection(
