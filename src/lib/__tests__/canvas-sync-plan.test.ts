@@ -103,4 +103,19 @@ describe("buildSyncPlan", () => {
     );
     expect(rows).toHaveLength(0);
   });
+
+  it("keeps one row per canvas_assignment_id (Pg 21000 would fail the whole upsert batch)", () => {
+    const { rows } = buildSyncPlan(
+      [
+        incoming({ canvas_assignment_id: 1, title: "first" }),
+        incoming({ canvas_assignment_id: 1, title: "second" }),
+      ],
+      [],
+      courseMap,
+      USER,
+      NOW
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].title).toBe("second"); // last write wins
+  });
 });

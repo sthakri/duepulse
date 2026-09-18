@@ -187,13 +187,17 @@ const PLANNABLE_SYNCED_TYPES = new Set(["assignment", "quiz", "discussion_topic"
  * ids, so a same number collision is possible in theory; the full fix is a
  * type column in the schema, not worth it today.
  */
-export function plannerItemToAssignment(item: unknown): CanvasAssignment | null {
+export function plannerItemToAssignment(item: unknown, domain: string): CanvasAssignment | null {
   if (typeof item !== "object" || item === null) return null;
   const record = item as Record<string, unknown>;
   if (typeof record.plannable_type !== "string" || !PLANNABLE_SYNCED_TYPES.has(record.plannable_type)) {
     return null;
   }
   const plannable = record.plannable as Record<string, unknown> | undefined;
+  // Some Canvas installs return a path-only html_url ("/courses/1/..."),
+  // which would resolve against the DuePulse origin and 404. Make it absolute.
+  const rawUrl = typeof record.html_url === "string" ? record.html_url : null;
+  const html_url = rawUrl?.startsWith("/") ? `https://${domain}${rawUrl}` : rawUrl;
   return {
     canvas_assignment_id: Number(plannable?.assignment_id ?? record.plannable_id),
     canvas_course_id: Number(record.course_id),
@@ -207,7 +211,7 @@ export function plannerItemToAssignment(item: unknown): CanvasAssignment | null 
       plannable?.points_possible != null
         ? Number(plannable.points_possible)
         : null,
-    html_url: typeof record.html_url === "string" ? record.html_url : null,
+    html_url,
     submission_types: Array.isArray(plannable?.submission_types)
       ? (plannable.submission_types as string[])
       : [],
@@ -235,7 +239,7 @@ export async function getCanvasAssignments(
   const items = await fetchAllPages<unknown>(token, domain, assignmentsUrl);
 
   return items
-    .map(plannerItemToAssignment)
+    .map((item) => plannerItemToAssignment(item, domain))
     .filter((a): a is CanvasAssignment => a !== null);
 }
 

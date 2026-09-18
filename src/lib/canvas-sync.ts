@@ -85,7 +85,12 @@ export function buildSyncPlan(
     })
     .filter((r) => r.course_id !== "");
 
-  return { rows, toDeleteIds };
+  // One row per canvas_assignment_id: the whole upsert batch fails with
+  // Postgres 21000 if two rows share the unique key, which kills the entire
+  // sync. Last write wins, mirroring plain upsert semantics.
+  const deduped = [...new Map(rows.map((r) => [r.canvas_assignment_id, r])).values()];
+
+  return { rows: deduped, toDeleteIds };
 }
 
 /**
@@ -236,7 +241,11 @@ export async function syncUserCanvas(
     // course-less items were never persisted, so don't claim them.
     return { ok: true, synced: rows.length };
   } catch (err) {
+    // Surface the real reason: "Database error" alone made two separate
+    // outages undebuggable from the toast alone. PostgREST messages here may
+    // name constraints but never include row values or tokens.
+    const detail = err instanceof Error ? err.message : String(err);
     console.error("Supabase sync error:", err);
-    return { ok: false, reason: "db_error", message: "Database error" };
+    return { ok: false, reason: "db_error", message: `Database error: ${detail}` };
   }
 }

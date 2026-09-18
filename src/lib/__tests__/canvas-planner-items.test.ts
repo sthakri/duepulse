@@ -23,7 +23,7 @@ const gradedQuizItem = {
 
 describe("plannerItemToAssignment", () => {
   it("keeps quizzes instead of dropping them (missed quiz regression)", () => {
-    const result = plannerItemToAssignment(gradedQuizItem);
+    const result = plannerItemToAssignment(gradedQuizItem, "school.instructure.com");
     expect(result).not.toBeNull();
     expect(result!.title).toBe("Chapter 3 Quiz");
     expect(result!.canvas_course_id).toBe(100);
@@ -31,8 +31,17 @@ describe("plannerItemToAssignment", () => {
   });
 
   it("uses the assignment id (not the quiz id) as the row key for graded quizzes", () => {
-    const result = plannerItemToAssignment(gradedQuizItem);
+    const result = plannerItemToAssignment(gradedQuizItem, "school.instructure.com");
     expect(result!.canvas_assignment_id).toBe(9001);
+  });
+
+  it("makes path-only html_url absolute against the Canvas domain", () => {
+    // Real payload from canvas.txstate.edu: planner items ship relative URLs.
+    const result = plannerItemToAssignment(
+      { ...gradedQuizItem, html_url: "/courses/100/quizzes/555" },
+      "canvas.txstate.edu"
+    );
+    expect(result!.html_url).toBe("https://canvas.txstate.edu/courses/100/quizzes/555");
   });
 
   it("keeps ungraded quizzes, falling back to plannable_id", () => {
@@ -51,7 +60,7 @@ describe("plannerItemToAssignment", () => {
       },
       submissions: false,
     };
-    const result = plannerItemToAssignment(ungradedQuiz);
+    const result = plannerItemToAssignment(ungradedQuiz, "school.instructure.com");
     expect(result!.canvas_assignment_id).toBe(777);
     expect(result!.due_at).toBe("2026-09-22T10:00:00Z"); // plannable_date fallback
     expect(result!.is_completed).toBe(false);
@@ -72,7 +81,7 @@ describe("plannerItemToAssignment", () => {
       },
       submissions: { submitted: true },
     };
-    const result = plannerItemToAssignment(discussion);
+    const result = plannerItemToAssignment(discussion, "school.instructure.com");
     expect(result!.canvas_assignment_id).toBe(9010);
     expect(result!.is_completed).toBe(true);
   });
@@ -92,7 +101,7 @@ describe("plannerItemToAssignment", () => {
       },
       submissions: { submitted: false },
     };
-    const result = plannerItemToAssignment(assignment);
+    const result = plannerItemToAssignment(assignment, "school.instructure.com");
     expect(result!.canvas_assignment_id).toBe(1234);
     expect(result!.submission_types).toEqual(["online_upload"]);
   });
@@ -105,10 +114,10 @@ describe("plannerItemToAssignment", () => {
     };
     const page = { plannable_type: "wiki_page", plannable_id: 5, plannable: { id: 5, title: "Read p. 3" } };
     const event = { plannable_type: "calendar_event", plannable_id: 6, plannable: { id: 6, title: "Study hall" } };
-    expect(plannerItemToAssignment(note)).toBeNull();
-    expect(plannerItemToAssignment(page)).toBeNull();
-    expect(plannerItemToAssignment(event)).toBeNull();
-    expect(plannerItemToAssignment(null)).toBeNull();
-    expect(plannerItemToAssignment("nope")).toBeNull();
+    expect(plannerItemToAssignment(note, "x")).toBeNull();
+    expect(plannerItemToAssignment(page, "x")).toBeNull();
+    expect(plannerItemToAssignment(event, "x")).toBeNull();
+    expect(plannerItemToAssignment(null, "x")).toBeNull();
+    expect(plannerItemToAssignment("nope", "x")).toBeNull();
   });
 });
